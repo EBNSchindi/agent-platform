@@ -87,6 +87,38 @@ Better classifications next time!
 
 ---
 
+## 🆕 OpenAI Agents SDK Migration (Phase 7 - Week 1)
+
+**Status:** ✅ Agent wrappers completed (Day 1-2)
+
+Das System wurde auf **OpenAI Agents SDK** migriert während **100% der Logik preserviert** wurde:
+
+### Neue Agent-basierte Architektur
+
+```python
+from agent_platform.classification.agents import AgentBasedClassifier
+
+# Drop-in replacement for UnifiedClassifier
+classifier = AgentBasedClassifier()
+result = await classifier.classify(email)
+```
+
+**Preservation Principle: Extract → Wrap → Orchestrate**
+- ✅ Pattern matching (40 keywords, 6 regex patterns) - UNVERÄNDERT
+- ✅ EMA learning (α=0.15) - UNVERÄNDERT
+- ✅ Early stopping (0.85 threshold) - UNVERÄNDERT
+- ✅ Confidence scores (0.95, 0.90, 0.85, 0.80) - UNVERÄNDERT
+
+**Neue Features:**
+- 🤖 OpenAI Agents SDK Integration (Labs 1-4 patterns)
+- 🔧 Agent als Tools (Rule, History, LLM agents)
+- 🔀 Agent Registry kompatibel
+- 📊 Identische Performance & Ergebnisse
+
+Siehe [docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md](docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md) für Details.
+
+---
+
 ## 🚀 Quick Start
 
 ### Installation
