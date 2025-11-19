@@ -115,7 +115,7 @@ result = await classifier.classify(email)
 - 🔀 Agent Registry kompatibel
 - 📊 Identische Performance & Ergebnisse
 
-Siehe [docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md](docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md) für Details.
+Siehe [docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md](docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md) für vollständige Details.
 
 ---
 
@@ -132,11 +132,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Setup directories
-chmod +x scripts/setup_directories.sh
-./scripts/setup_directories.sh
+chmod +x scripts/setup/setup_directories.sh
+./scripts/setup/setup_directories.sh
 
 # Database
-python -c "from agent_platform.db.database import init_db; init_db()"
+python scripts/setup/init_database.py
 ```
 
 ### Configuration
@@ -149,15 +149,15 @@ cp .env.example .env
 # - OPENAI_API_KEY=sk-proj-...
 # - GMAIL_2_EMAIL=your-email@gmail.com
 
-# 3. Setup Gmail OAuth2 (see SETUP_GUIDE.md)
-python scripts/test_gmail_auth.py
+# 3. Setup Gmail OAuth2 (see docs/setup/SETUP_GUIDE.md)
+python scripts/testing/test_gmail_auth.py
 ```
 
 ### End-to-End Test with Real Gmail
 
 ```bash
 # Test complete pipeline with real Gmail account
-python tests/test_e2e_real_gmail.py
+python tests/integration/test_e2e_real_gmail.py
 
 # Expected output:
 # ✅ Gmail authentication successful
@@ -171,7 +171,7 @@ python tests/test_e2e_real_gmail.py
 
 ```bash
 # Analyze last 100-200 emails to initialize system
-python scripts/analyze_mailbox_history.py
+python scripts/operations/analyze_mailbox_history.py
 
 # Expected output:
 # Total Classified: 195
@@ -210,19 +210,23 @@ asyncio.run(main())
 
 ```bash
 # Core classification tests (4/4)
-python tests/test_classification_layers.py      # ✅
+python tests/classification/test_classification_layers.py      # ✅
 
 # Feedback tracking tests (6/6)
-python tests/test_feedback_tracking.py          # ✅
+python tests/feedback/test_feedback_tracking.py                # ✅
 
 # Review system tests (7/7)
-python tests/test_review_system.py              # ✅
+python tests/review/test_review_system.py                      # ✅
 
 # E2E workflow test
-python tests/test_e2e_classification_workflow.py # ✅
+python tests/integration/test_e2e_classification_workflow.py   # ✅
 
 # E2E test with real Gmail (NEW)
-python tests/test_e2e_real_gmail.py             # ✅
+python tests/integration/test_e2e_real_gmail.py                # ✅
+
+# Agent migration tests (NEW)
+python tests/agents/test_agents_quick.py                       # ✅
+python tests/agents/test_agent_migration.py                    # ✅
 
 # All tests
 pytest tests/
@@ -239,7 +243,12 @@ agent_platform/
 │   ├── importance_history.py   # History Layer
 │   ├── importance_llm.py       # LLM Layer
 │   ├── models.py               # Pydantic models
-│   └── unified_classifier.py   # Orchestration with logging
+│   ├── unified_classifier.py   # Orchestration with logging
+│   └── agents/                 # Phase 7 (~2,200 Zeilen)
+│       ├── rule_agent.py       # Rule Agent
+│       ├── history_agent.py    # History Agent
+│       ├── llm_agent.py        # LLM Agent
+│       └── orchestrator_agent.py # Orchestrator Agent
 │
 ├── feedback/                    # Phase 4 (~800 Zeilen)
 │   ├── tracker.py              # Feedback tracking & EMA
@@ -267,15 +276,37 @@ agent_platform/
 └── core/                        # Configuration
     └── config.py               # Constants & config
 
-tests/                           # ~1,600 Zeilen Tests
-scripts/                         # Phase 7 (~1,000 Zeilen)
-├── test_gmail_auth.py          # Gmail OAuth testing
-├── analyze_mailbox_history.py  # Mailbox analysis
-└── setup_directories.sh        # Directory setup
+tests/                           # ~2,500 Zeilen Tests
+├── classification/              # Classification tests
+├── integration/                 # E2E tests
+├── feedback/                    # Feedback tests
+├── llm/                        # LLM provider tests
+├── review/                     # Review system tests
+└── agents/                     # Agent migration tests
 
-docs/                            # Phase-Complete docs
+scripts/
+├── setup/                      # Setup & DB initialization
+│   ├── init_database.py
+│   ├── verify_db.py
+│   └── setup_directories.sh
+├── testing/                    # Connection tests
+│   ├── test_gmail_auth.py
+│   ├── test_openai_connection.py
+│   └── test_all_connections.py
+└── operations/                 # Operational scripts
+    ├── run_classifier.py
+    ├── run_responder.py
+    ├── run_scheduler.py
+    ├── run_full_workflow.py
+    └── analyze_mailbox_history.py
 
-Total: ~9,500+ Zeilen Production Code + Phase 7
+docs/                           # Complete documentation
+├── phases/                     # Phase completion docs
+├── architecture/               # Architecture & design
+├── planning/                   # Roadmaps & next steps
+└── setup/                      # Setup guides
+
+Total: ~11,700+ Zeilen Production Code (inkl. Phase 7)
 ```
 
 ---
@@ -306,17 +337,29 @@ Total: ~9,500+ Zeilen Production Code + Phase 7
 
 ## 📚 Dokumentation
 
-- **[SETUP_GUIDE](SETUP_GUIDE.md)** - Kompletter Setup & Konfiguration (NEU!)
-- **[README](README.md)** - Dieses Dokument
-- **[DEPLOYMENT](DEPLOYMENT.md)** - Production Deployment
-- **[PHASE_1_COMPLETE](PHASE_1_COMPLETE.md)** - Foundation + Ollama
-- **[PHASE_2_COMPLETE](PHASE_2_COMPLETE.md)** - Rule + History
-- **[PHASE_3_COMPLETE](PHASE_3_COMPLETE.md)** - LLM + Unified
-- **[PHASE_4_COMPLETE](PHASE_4_COMPLETE.md)** - Feedback Tracking
-- **[PHASE_5_COMPLETE](PHASE_5_COMPLETE.md)** - Review System
-- **[PHASE_6_COMPLETE](PHASE_6_COMPLETE.md)** - Orchestrator
-- **[PHASE_7_E2E_TESTING](PHASE_7_E2E_TESTING.md)** - E2E Tests & Monitoring (NEU!)
-- **[CLAUDE.md](CLAUDE.md)** - Development Guide für Claude Code
+### Setup & Operations
+- **[SETUP_GUIDE](docs/setup/SETUP_GUIDE.md)** - Kompletter Setup & Konfiguration
+- **[DEPLOYMENT](docs/setup/DEPLOYMENT.md)** - Production Deployment
+- **[CONNECTION_TESTS](docs/setup/CONNECTION_TESTS.md)** - Connection Testing
+- **[QUICKSTART](docs/setup/QUICKSTART.md)** - Quick Start Guide
+
+### Architecture & Planning
+- **[ARCHITECTURE_MIGRATION](docs/architecture/ARCHITECTURE_MIGRATION.md)** - OpenAI Agents SDK Migration
+- **[PROJECT_SCOPE](docs/architecture/PROJECT_SCOPE.md)** - Project Scope & Goals
+- **[PROJECT_SUMMARY](docs/architecture/PROJECT_SUMMARY.md)** - Complete Project Summary
+- **[CLAUDE.md](docs/architecture/CLAUDE.md)** - Development Guide für Claude Code
+- **[ROADMAP](docs/planning/ROADMAP.md)** - Timeline & Milestones
+- **[NEXT_STEPS](docs/planning/NEXT_STEPS.md)** - Future Development
+
+### Phase Documentation
+- **[PHASE_1_COMPLETE](docs/phases/PHASE_1_COMPLETE.md)** - Foundation + Ollama
+- **[PHASE_2_COMPLETE](docs/phases/PHASE_2_COMPLETE.md)** - Rule + History Layers
+- **[PHASE_3_COMPLETE](docs/phases/PHASE_3_COMPLETE.md)** - LLM + Unified Classifier
+- **[PHASE_4_COMPLETE](docs/phases/PHASE_4_COMPLETE.md)** - Feedback Tracking
+- **[PHASE_5_COMPLETE](docs/phases/PHASE_5_COMPLETE.md)** - Review System
+- **[PHASE_6_COMPLETE](docs/phases/PHASE_6_COMPLETE.md)** - Orchestrator Integration
+- **[PHASE_7_E2E_TESTING](docs/phases/PHASE_7_E2E_TESTING.md)** - E2E Tests & Monitoring
+- **[PHASE_7_AGENT_MIGRATION](docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md)** - OpenAI Agents SDK Migration (Week 1)
 
 ---
 
