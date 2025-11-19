@@ -1,0 +1,26 @@
+# OpenAI Agents SDK
+openai>=1.54.0
+agents-sdk>=0.1.0
+
+# Google APIs (Gmail)
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.1
+google-auth-oauthlib>=1.1.0
+
+# Data Validation & Configuration
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+
+# Database
+sqlalchemy>=2.0.23
+alembic>=1.13.0
+
+# Scheduling
+apscheduler>=3.10.4
+
+# Async support
+aiohttp>=3.9.0
+asyncio
+
+# Utilities
+python-dateutil>=2.8.2
