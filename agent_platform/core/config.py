@@ -34,7 +34,33 @@ class Config:
     BACKUP_DAY_OF_MONTH: int = int(os.getenv("BACKUP_DAY_OF_MONTH", "1"))
     BACKUP_HOUR: int = int(os.getenv("BACKUP_HOUR", "3"))
 
-    # Email Module
+    # LLM Provider Configuration (Ollama-First with OpenAI Fallback)
+    # Ollama (Local - Primary)
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "gptoss20b")
+    OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+
+    # OpenAI (Cloud - Fallback)
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
+
+    # Fallback Strategy
+    LLM_FALLBACK_ENABLED: bool = os.getenv("LLM_FALLBACK_ENABLED", "true").lower() == "true"
+
+    # Importance Classifier Thresholds
+    IMPORTANCE_CONFIDENCE_HIGH_THRESHOLD: float = float(os.getenv("IMPORTANCE_CONFIDENCE_HIGH_THRESHOLD", "0.85"))
+    IMPORTANCE_CONFIDENCE_MEDIUM_THRESHOLD: float = float(os.getenv("IMPORTANCE_CONFIDENCE_MEDIUM_THRESHOLD", "0.6"))
+    IMPORTANCE_SCORE_LOW_THRESHOLD: float = float(os.getenv("IMPORTANCE_SCORE_LOW_THRESHOLD", "0.4"))
+    IMPORTANCE_SCORE_HIGH_THRESHOLD: float = float(os.getenv("IMPORTANCE_SCORE_HIGH_THRESHOLD", "0.7"))
+
+    # Review System
+    DAILY_DIGEST_ENABLED: bool = os.getenv("DAILY_DIGEST_ENABLED", "true").lower() == "true"
+    DAILY_DIGEST_TIME: str = os.getenv("DAILY_DIGEST_TIME", "08:00")
+
+    # Feedback Tracking
+    FEEDBACK_TRACKING_ENABLED: bool = os.getenv("FEEDBACK_TRACKING_ENABLED", "true").lower() == "true"
+    FEEDBACK_CHECK_INTERVAL_HOURS: int = int(os.getenv("FEEDBACK_CHECK_INTERVAL_HOURS", "1"))
+
+    # Email Module (Legacy - keep for backward compatibility)
     DEFAULT_MODE: Mode = Mode(os.getenv("DEFAULT_MODE", "draft"))
     CLASSIFIER_BATCH_SIZE: int = int(os.getenv("CLASSIFIER_BATCH_SIZE", "10"))
     RESPONDER_CONFIDENCE_THRESHOLD: float = float(os.getenv("RESPONDER_CONFIDENCE_THRESHOLD", "0.85"))

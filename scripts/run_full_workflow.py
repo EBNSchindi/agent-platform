@@ -10,8 +10,8 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from platform.core.config import Config, Mode
-from platform.db.database import init_db
+from agent_platform.core.config import Config, Mode
+from agent_platform.db.database import init_db
 from modules.email.module import register_email_module
 from modules.email.agents.orchestrator import EmailOrchestrator
 from modules.email.agents.backup import run_monthly_backup

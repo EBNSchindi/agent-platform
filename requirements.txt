@@ -1,6 +1,6 @@
 # OpenAI Agents SDK
 openai>=1.54.0
-agents-sdk>=0.1.0
+agents-sdk>=0.0.0
 
 # Google APIs (Gmail)
 google-api-python-client>=2.100.0

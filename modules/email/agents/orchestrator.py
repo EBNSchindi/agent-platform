@@ -9,8 +9,8 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from platform.core.config import Config, Mode
-from platform.core.registry import get_registry
+from agent_platform.core.config import Config, Mode
+from agent_platform.core.registry import get_registry
 from modules.email.tools.gmail_tools import (
     fetch_unread_emails_tool,
     create_draft_tool,

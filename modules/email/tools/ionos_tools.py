@@ -11,7 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from typing import List, Dict, Any
 from datetime import datetime
 
-from platform.core.config import Config
+from agent_platform.core.config import Config
 
 
 class IonosService:
