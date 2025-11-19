@@ -344,10 +344,10 @@ Total: ~11,700+ Zeilen Production Code (inkl. Phase 7)
 - **[QUICKSTART](docs/setup/QUICKSTART.md)** - Quick Start Guide
 
 ### Architecture & Planning
+- **[PROJECT_SCOPE](PROJECT_SCOPE.md)** - Project Scope & Goals ⭐
+- **[CLAUDE.md](CLAUDE.md)** - Development Guide für Claude Code ⭐
 - **[ARCHITECTURE_MIGRATION](docs/architecture/ARCHITECTURE_MIGRATION.md)** - OpenAI Agents SDK Migration
-- **[PROJECT_SCOPE](docs/architecture/PROJECT_SCOPE.md)** - Project Scope & Goals
 - **[PROJECT_SUMMARY](docs/architecture/PROJECT_SUMMARY.md)** - Complete Project Summary
-- **[CLAUDE.md](docs/architecture/CLAUDE.md)** - Development Guide für Claude Code
 - **[ROADMAP](docs/planning/ROADMAP.md)** - Timeline & Milestones
 - **[NEXT_STEPS](docs/planning/NEXT_STEPS.md)** - Future Development
 
