@@ -29,6 +29,7 @@ from agent_platform.classification.importance_history import HistoryLayer
 from agent_platform.classification.importance_llm import LLMLayer
 from agent_platform.core.config import Config
 from agent_platform.db.database import get_db
+from agent_platform.monitoring import log_classification, SystemLogger
 
 
 class UnifiedClassifier:
@@ -133,6 +134,17 @@ class UnifiedClassifier:
 
                 processing_time_ms = (time.time() - start_time) * 1000
 
+                # Log classification
+                log_classification(
+                    email_id=email.email_id,
+                    processing_time_ms=processing_time_ms,
+                    layer_used="rules",
+                    category=rule_result.category,
+                    confidence=rule_result.confidence,
+                    importance=rule_result.importance,
+                    llm_provider="rules_only",
+                )
+
                 return ClassificationResult(
                     importance=rule_result.importance,
                     confidence=rule_result.confidence,
@@ -164,6 +176,17 @@ class UnifiedClassifier:
                 self.stats['high_confidence_count'] += 1
 
                 processing_time_ms = (time.time() - start_time) * 1000
+
+                # Log classification
+                log_classification(
+                    email_id=email.email_id,
+                    processing_time_ms=processing_time_ms,
+                    layer_used="history",
+                    category=history_result.category,
+                    confidence=history_result.confidence,
+                    importance=history_result.importance,
+                    llm_provider="history_only",
+                )
 
                 return ClassificationResult(
                     importance=history_result.importance,
@@ -218,7 +241,7 @@ class UnifiedClassifier:
 
         reasoning_parts.append(llm_result.reasoning)
 
-        return ClassificationResult(
+        final_result = ClassificationResult(
             importance=llm_result.importance,
             confidence=llm_result.confidence,
             category=llm_result.category,
@@ -227,6 +250,19 @@ class UnifiedClassifier:
             llm_provider_used=llm_result.llm_provider_used,
             processing_time_ms=processing_time_ms,
         )
+
+        # Log classification
+        log_classification(
+            email_id=email.email_id,
+            processing_time_ms=processing_time_ms,
+            layer_used="llm",
+            category=llm_result.category,
+            confidence=llm_result.confidence,
+            importance=llm_result.importance,
+            llm_provider=llm_result.llm_provider_used,
+        )
+
+        return final_result
 
     # ========================================================================
     # STATISTICS
