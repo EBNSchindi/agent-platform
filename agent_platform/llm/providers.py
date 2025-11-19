@@ -188,6 +188,7 @@ class UnifiedLLMProvider:
             # Use .create() for regular completions
             response = self.ollama.chat.completions.create(**request_params)
 
+        # Return response object (caller will wrap in tuple)
         return response
 
     async def _openai_complete(
@@ -195,7 +196,7 @@ class UnifiedLLMProvider:
         messages: List[Dict[str, str]],
         response_format: Optional[type] = None,
         **kwargs
-    ) -> tuple[Any, str]:
+    ) -> Any:
         """Call OpenAI API"""
 
         if not self.openai:
@@ -222,7 +223,8 @@ class UnifiedLLMProvider:
                 **kwargs
             )
 
-        return response, "openai"
+        # Return response object only (caller will wrap in tuple)
+        return response
 
     def _update_performance(self, provider: str, elapsed_time: float):
         """Update performance metrics"""

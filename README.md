@@ -87,6 +87,38 @@ Better classifications next time!
 
 ---
 
+## 🆕 OpenAI Agents SDK Migration (Phase 7 - Week 1)
+
+**Status:** ✅ Agent wrappers completed (Day 1-2)
+
+Das System wurde auf **OpenAI Agents SDK** migriert während **100% der Logik preserviert** wurde:
+
+### Neue Agent-basierte Architektur
+
+```python
+from agent_platform.classification.agents import AgentBasedClassifier
+
+# Drop-in replacement for UnifiedClassifier
+classifier = AgentBasedClassifier()
+result = await classifier.classify(email)
+```
+
+**Preservation Principle: Extract → Wrap → Orchestrate**
+- ✅ Pattern matching (40 keywords, 6 regex patterns) - UNVERÄNDERT
+- ✅ EMA learning (α=0.15) - UNVERÄNDERT
+- ✅ Early stopping (0.85 threshold) - UNVERÄNDERT
+- ✅ Confidence scores (0.95, 0.90, 0.85, 0.80) - UNVERÄNDERT
+
+**Neue Features:**
+- 🤖 OpenAI Agents SDK Integration (Labs 1-4 patterns)
+- 🔧 Agent als Tools (Rule, History, LLM agents)
+- 🔀 Agent Registry kompatibel
+- 📊 Identische Performance & Ergebnisse
+
+Siehe [docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md](docs/PHASE_7_AGENT_MIGRATION_SUMMARY.md) für Details.
+
+---
+
 ## 🚀 Quick Start
 
 ### Installation
@@ -99,8 +131,52 @@ source venv/bin/activate
 # Dependencies
 pip install -r requirements.txt
 
+# Setup directories
+chmod +x scripts/setup_directories.sh
+./scripts/setup_directories.sh
+
 # Database
 python -c "from agent_platform.db.database import init_db; init_db()"
+```
+
+### Configuration
+
+```bash
+# 1. Copy .env.example → .env
+cp .env.example .env
+
+# 2. Add your API keys to .env
+# - OPENAI_API_KEY=sk-proj-...
+# - GMAIL_2_EMAIL=your-email@gmail.com
+
+# 3. Setup Gmail OAuth2 (see SETUP_GUIDE.md)
+python scripts/test_gmail_auth.py
+```
+
+### End-to-End Test with Real Gmail
+
+```bash
+# Test complete pipeline with real Gmail account
+python tests/test_e2e_real_gmail.py
+
+# Expected output:
+# ✅ Gmail authentication successful
+# ✅ Fetched 10 email(s)
+# Processing through classification pipeline...
+# ✅ Processed: 10 emails
+# Duration: 2.34s
+```
+
+### Analyze Mailbox History
+
+```bash
+# Analyze last 100-200 emails to initialize system
+python scripts/analyze_mailbox_history.py
+
+# Expected output:
+# Total Classified: 195
+# Average Processing Time: 487ms
+# Sender Preferences Initialized: 52
 ```
 
 ### Basic Usage
@@ -130,14 +206,26 @@ async def main():
 asyncio.run(main())
 ```
 
-### Tests ausführen
+### All Tests
 
 ```bash
-# All tests (23/23 passing ✅)
-python tests/test_classification_layers.py      # 4/4 ✅
-python tests/test_feedback_tracking.py          # 6/6 ✅
-python tests/test_review_system.py              # 7/7 ✅
-python tests/test_e2e_classification_workflow.py # E2E ✅
+# Core classification tests (4/4)
+python tests/test_classification_layers.py      # ✅
+
+# Feedback tracking tests (6/6)
+python tests/test_feedback_tracking.py          # ✅
+
+# Review system tests (7/7)
+python tests/test_review_system.py              # ✅
+
+# E2E workflow test
+python tests/test_e2e_classification_workflow.py # ✅
+
+# E2E test with real Gmail (NEW)
+python tests/test_e2e_real_gmail.py             # ✅
+
+# All tests
+pytest tests/
 ```
 
 ---
@@ -150,7 +238,8 @@ agent_platform/
 │   ├── importance_rules.py     # Rule Layer
 │   ├── importance_history.py   # History Layer
 │   ├── importance_llm.py       # LLM Layer
-│   └── unified_classifier.py   # Orchestration
+│   ├── models.py               # Pydantic models
+│   └── unified_classifier.py   # Orchestration with logging
 │
 ├── feedback/                    # Phase 4 (~800 Zeilen)
 │   ├── tracker.py              # Feedback tracking & EMA
@@ -165,13 +254,28 @@ agent_platform/
 │   ├── classification_orchestrator.py # Main workflow
 │   └── scheduler_jobs.py       # Scheduled jobs
 │
-└── llm/                         # Phase 1 (~250 Zeilen)
-    └── providers.py            # Ollama + OpenAI
+├── llm/                         # Phase 1 (~250 Zeilen)
+│   └── providers.py            # Ollama + OpenAI
+│
+├── monitoring.py                # Phase 7 (~400 Zeilen)
+│   └── Metrics, logging, daily reports
+│
+├── db/                          # Database layer
+│   ├── models.py               # SQLAlchemy models
+│   └── database.py             # Session management
+│
+└── core/                        # Configuration
+    └── config.py               # Constants & config
 
 tests/                           # ~1,600 Zeilen Tests
-docs/                            # 6 Phase-Complete docs
+scripts/                         # Phase 7 (~1,000 Zeilen)
+├── test_gmail_auth.py          # Gmail OAuth testing
+├── analyze_mailbox_history.py  # Mailbox analysis
+└── setup_directories.sh        # Directory setup
 
-Total: ~7,000+ Zeilen Production Code
+docs/                            # Phase-Complete docs
+
+Total: ~9,500+ Zeilen Production Code + Phase 7
 ```
 
 ---
@@ -202,6 +306,7 @@ Total: ~7,000+ Zeilen Production Code
 
 ## 📚 Dokumentation
 
+- **[SETUP_GUIDE](SETUP_GUIDE.md)** - Kompletter Setup & Konfiguration (NEU!)
 - **[README](README.md)** - Dieses Dokument
 - **[DEPLOYMENT](DEPLOYMENT.md)** - Production Deployment
 - **[PHASE_1_COMPLETE](PHASE_1_COMPLETE.md)** - Foundation + Ollama
@@ -210,6 +315,8 @@ Total: ~7,000+ Zeilen Production Code
 - **[PHASE_4_COMPLETE](PHASE_4_COMPLETE.md)** - Feedback Tracking
 - **[PHASE_5_COMPLETE](PHASE_5_COMPLETE.md)** - Review System
 - **[PHASE_6_COMPLETE](PHASE_6_COMPLETE.md)** - Orchestrator
+- **[PHASE_7_E2E_TESTING](PHASE_7_E2E_TESTING.md)** - E2E Tests & Monitoring (NEU!)
+- **[CLAUDE.md](CLAUDE.md)** - Development Guide für Claude Code
 
 ---
 
