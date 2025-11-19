@@ -8,8 +8,8 @@ from sqlalchemy.pool import StaticPool
 from contextlib import contextmanager
 from typing import Generator
 
-from platform.core.config import Config
-from platform.db.models import Base
+from agent_platform.core.config import Config
+from agent_platform.db.models import Base
 
 
 # Create engine

@@ -17,8 +17,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from platform.core.config import Config
-from platform.db.database import init_db
+from agent_platform.core.config import Config
+from agent_platform.db.database import init_db
 from modules.email.module import register_email_module
 from modules.email.agents.orchestrator import process_all_inboxes
 from modules.email.agents.backup import run_monthly_backup

@@ -3,7 +3,7 @@ Email Module Definition
 Registers email agents with the platform.
 """
 
-from platform.core.registry import get_registry
+from agent_platform.core.registry import get_registry
 from modules.email.agents.classifier import create_classifier_agent
 from modules.email.agents.responder import create_responder_orchestrator
 

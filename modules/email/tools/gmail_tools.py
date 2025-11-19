@@ -377,7 +377,7 @@ def fetch_unread_emails_tool(account_id: str, max_results: int = 10) -> List[Dic
     Returns:
         List of email dictionaries
     """
-    from platform.core.config import Config
+    from agent_platform.core.config import Config
 
     account_config = Config.GMAIL_ACCOUNTS.get(account_id)
     if not account_config:
@@ -405,7 +405,7 @@ def create_draft_tool(account_id: str, to: str, subject: str, body: str) -> Dict
     Returns:
         Status dictionary with draft_id
     """
-    from platform.core.config import Config
+    from agent_platform.core.config import Config
 
     account_config = Config.GMAIL_ACCOUNTS.get(account_id)
     if not account_config:
@@ -422,7 +422,7 @@ def create_draft_tool(account_id: str, to: str, subject: str, body: str) -> Dict
 
 def apply_label_tool(account_id: str, email_id: str, label_name: str) -> Dict[str, str]:
     """Apply label to email"""
-    from platform.core.config import Config
+    from agent_platform.core.config import Config
 
     account_config = Config.GMAIL_ACCOUNTS.get(account_id)
     if not account_config:
@@ -439,7 +439,7 @@ def apply_label_tool(account_id: str, email_id: str, label_name: str) -> Dict[st
 
 def archive_email_tool(account_id: str, email_id: str) -> Dict[str, str]:
     """Archive email (remove from inbox)"""
-    from platform.core.config import Config
+    from agent_platform.core.config import Config
 
     account_config = Config.GMAIL_ACCOUNTS.get(account_id)
     if not account_config:

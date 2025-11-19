@@ -1,0 +1,330 @@
+"""
+Pydantic Models for Email Importance Classification
+
+These models define the structure of classification results at each layer
+and provide type safety for the three-layer classification system.
+"""
+
+from typing import Optional, List, Literal
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+
+# ============================================================================
+# IMPORTANCE CATEGORIES
+# ============================================================================
+
+ImportanceCategory = Literal[
+    "wichtig",              # Important - requires attention
+    "action_required",      # Action required - needs response/action
+    "nice_to_know",         # Nice to know - informational
+    "newsletter",           # Newsletter/marketing
+    "system_notifications", # Automated system notifications
+    "spam"                  # Spam/unwanted
+]
+
+
+# ============================================================================
+# BASE MODELS
+# ============================================================================
+
+class ImportanceScore(BaseModel):
+    """
+    Importance score with confidence.
+
+    - importance: 0.0 (low priority) to 1.0 (high priority)
+    - confidence: 0.0 (uncertain) to 1.0 (certain)
+    """
+    importance: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Importance score from 0.0 (low) to 1.0 (high)"
+    )
+
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Confidence in this classification from 0.0 to 1.0"
+    )
+
+    category: ImportanceCategory = Field(
+        ...,
+        description="Classified importance category"
+    )
+
+    reasoning: str = Field(
+        ...,
+        description="Human-readable explanation of the classification"
+    )
+
+
+class ClassificationResult(BaseModel):
+    """
+    Complete classification result from any layer.
+
+    Contains the importance score, category, confidence, and metadata
+    about which layer/provider was used.
+    """
+    importance: float = Field(..., ge=0.0, le=1.0)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    category: ImportanceCategory
+    reasoning: str
+
+    # Metadata
+    layer_used: Literal["rules", "history", "llm"] = Field(
+        ...,
+        description="Which classification layer produced this result"
+    )
+
+    llm_provider_used: Optional[Literal["ollama", "openai_fallback", "rules_only", "history_only"]] = Field(
+        None,
+        description="Which LLM provider was used (if any)"
+    )
+
+    processing_time_ms: float = Field(
+        ...,
+        description="Time taken to classify (milliseconds)"
+    )
+
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="When this classification was made"
+    )
+
+
+# ============================================================================
+# LAYER-SPECIFIC RESULTS
+# ============================================================================
+
+class RuleLayerResult(BaseModel):
+    """
+    Result from rule-based classification layer.
+
+    Fast pattern matching using keywords, sender patterns, and heuristics.
+    High confidence when clear patterns are detected (e.g., spam keywords).
+    """
+    matched_rules: List[str] = Field(
+        default_factory=list,
+        description="List of rule names that matched"
+    )
+
+    importance: float = Field(..., ge=0.0, le=1.0)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    category: ImportanceCategory
+    reasoning: str
+
+    # Signals for debugging
+    spam_signals: List[str] = Field(
+        default_factory=list,
+        description="Spam indicators found (if any)"
+    )
+
+    auto_reply_signals: List[str] = Field(
+        default_factory=list,
+        description="Auto-reply indicators found (if any)"
+    )
+
+    newsletter_signals: List[str] = Field(
+        default_factory=list,
+        description="Newsletter indicators found (if any)"
+    )
+
+
+class HistoryLayerResult(BaseModel):
+    """
+    Result from history-based classification layer.
+
+    Uses learned user behavior patterns from sender/domain preferences.
+    High confidence when sufficient historical data exists.
+    """
+    sender_email: str = Field(..., description="Email sender address")
+    sender_domain: str = Field(..., description="Sender domain")
+
+    # Historical data used
+    sender_preference_found: bool = Field(
+        False,
+        description="Whether sender-specific preferences exist"
+    )
+
+    domain_preference_found: bool = Field(
+        False,
+        description="Whether domain-level preferences exist"
+    )
+
+    historical_reply_rate: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Historical reply rate for this sender/domain"
+    )
+
+    historical_archive_rate: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Historical archive rate for this sender/domain"
+    )
+
+    total_historical_emails: int = Field(
+        0,
+        description="Number of historical emails from this sender/domain"
+    )
+
+    # Classification result
+    importance: float = Field(..., ge=0.0, le=1.0)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    category: ImportanceCategory
+    reasoning: str
+
+    # Data source
+    data_source: Literal["sender", "domain", "default"] = Field(
+        ...,
+        description="Whether using sender-level, domain-level, or default data"
+    )
+
+
+class LLMLayerResult(BaseModel):
+    """
+    Result from LLM-based classification layer.
+
+    Deep semantic analysis using Ollama (primary) or OpenAI (fallback).
+    Highest accuracy but slowest and most expensive.
+    """
+    importance: float = Field(..., ge=0.0, le=1.0)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    category: ImportanceCategory
+    reasoning: str
+
+    # LLM metadata
+    llm_provider_used: Literal["ollama", "openai_fallback"] = Field(
+        ...,
+        description="Which LLM provider was used"
+    )
+
+    llm_model_used: str = Field(
+        ...,
+        description="Specific model name used (e.g., gptoss20b, gpt-4o)"
+    )
+
+    llm_response_time_ms: float = Field(
+        ...,
+        description="LLM API response time in milliseconds"
+    )
+
+    # Context used
+    subject_analyzed: bool = Field(
+        True,
+        description="Whether email subject was analyzed"
+    )
+
+    body_analyzed: bool = Field(
+        True,
+        description="Whether email body was analyzed"
+    )
+
+    sender_context_used: bool = Field(
+        False,
+        description="Whether sender history context was provided to LLM"
+    )
+
+
+# ============================================================================
+# EMAIL DATA MODEL (Input to Classification)
+# ============================================================================
+
+class EmailToClassify(BaseModel):
+    """
+    Email data structure for classification.
+
+    Contains all information needed for the three-layer classification system.
+    """
+    # Required fields
+    email_id: str = Field(..., description="Unique email identifier")
+    subject: str = Field(..., description="Email subject line")
+    sender: str = Field(..., description="Sender email address")
+    body: str = Field(..., description="Email body content (plain text)")
+
+    # Optional context
+    received_at: Optional[datetime] = Field(
+        None,
+        description="When the email was received"
+    )
+
+    has_attachments: bool = Field(
+        False,
+        description="Whether email has attachments"
+    )
+
+    is_reply: bool = Field(
+        False,
+        description="Whether this is a reply to a previous email"
+    )
+
+    thread_id: Optional[str] = Field(
+        None,
+        description="Email thread identifier (if part of conversation)"
+    )
+
+    # Account info
+    account_id: str = Field(
+        ...,
+        description="Account ID this email belongs to (e.g., gmail_1)"
+    )
+
+
+# ============================================================================
+# THRESHOLDS CONFIGURATION
+# ============================================================================
+
+class ClassificationThresholds(BaseModel):
+    """
+    Configurable thresholds for the classification system.
+
+    Controls when to skip to next layer and what actions to take
+    based on confidence levels.
+    """
+    # Confidence thresholds
+    high_confidence_threshold: float = Field(
+        0.85,
+        ge=0.0,
+        le=1.0,
+        description="Skip to action if confidence >= this (default: 0.85)"
+    )
+
+    medium_confidence_threshold: float = Field(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="Add to review queue if confidence >= this (default: 0.6)"
+    )
+
+    # Importance score thresholds
+    low_importance_threshold: float = Field(
+        0.4,
+        ge=0.0,
+        le=1.0,
+        description="Move to Low-Priority if importance < this (default: 0.4)"
+    )
+
+    high_importance_threshold: float = Field(
+        0.7,
+        ge=0.0,
+        le=1.0,
+        description="Eligible for auto-reply if importance > this (default: 0.7)"
+    )
+
+    # History layer requirements
+    min_historical_emails_for_high_confidence: int = Field(
+        5,
+        ge=1,
+        description="Minimum emails needed for high-confidence history classification"
+    )
+
+    history_confidence_boost: float = Field(
+        0.1,
+        ge=0.0,
+        le=0.3,
+        description="Confidence boost when using sender-specific data vs domain"
+    )

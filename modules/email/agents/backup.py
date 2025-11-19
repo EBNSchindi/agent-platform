@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from platform.core.config import Config
+from agent_platform.core.config import Config
 from modules.email.tools.gmail_tools import get_gmail_service
 
 

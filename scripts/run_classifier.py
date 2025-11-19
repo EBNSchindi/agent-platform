@@ -10,12 +10,12 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from platform.core.config import Config
-from platform.db.database import init_db
+from agent_platform.core.config import Config
+from agent_platform.db.database import init_db
 from modules.email.module import register_email_module
 from modules.email.tools.gmail_tools import fetch_unread_emails_tool
 from modules.email.agents.classifier import classify_emails_batch
-from platform.core.registry import get_registry
+from agent_platform.core.registry import get_registry
 
 
 async def main():
