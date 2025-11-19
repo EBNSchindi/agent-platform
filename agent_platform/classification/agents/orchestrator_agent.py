@@ -83,33 +83,20 @@ async def orchestrate_classification(
     """
     start_time = time.time()
 
-    # Create agents (← Pattern from OpenAI Agents SDK)
-    rule_agent = create_rule_agent()
-    history_agent = create_history_agent()
-    llm_agent = create_llm_agent()
+    # Import tool functions directly (no need for Agent wrappers in orchestration)
+    from agent_platform.classification.agents.rule_agent import classify_email_with_rules
+    from agent_platform.classification.agents.history_agent import classify_email_with_history
+    from agent_platform.classification.agents.llm_agent import classify_email_with_llm
 
     # ========================================================================
-    # LAYER 1: RULE AGENT (Pattern Matching)
+    # LAYER 1: RULE LAYER (Pattern Matching)
     # ========================================================================
     # ← SAME as unified_classifier.py lines 126-156
 
     if not force_llm:
-        print(f"  🔍 Layer 1: Rule Agent (pattern matching)...")
+        print(f"  🔍 Layer 1: Rule Layer (pattern matching)...")
 
-        # Run Rule Agent (← OpenAI Agents SDK pattern)
-        rule_input = f"Classify email:\nSubject: {subject}\nBody: {body[:500]}\nSender: {sender}"
-        rule_result = await Runner.run(rule_agent, rule_input)
-
-        # Parse rule result from agent response
-        # Agent returns the dict from classify_email_with_rules tool
-        rule_data = rule_result.choices[0].message.content
-
-        # Extract confidence (← SAME early stopping check as original)
-        # Note: In production, we'd parse the structured output properly
-        # For now, assume the agent returns the dict directly via tool
-
-        # Import the rule tool directly for cleaner access
-        from agent_platform.classification.agents.rule_agent import classify_email_with_rules
+        # Call rule function directly (no Agent wrapper needed)
         rule_data = classify_email_with_rules(email_id, subject, body, sender)
 
         rule_confidence = rule_data['confidence']

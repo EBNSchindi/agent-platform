@@ -21,7 +21,7 @@ Pattern Matching Logic:
 import re
 from typing import List, Tuple, Dict, Any
 from pydantic import BaseModel, Field
-from agents import Agent
+from agents import Agent, FunctionTool
 
 from agent_platform.classification.models import (
     EmailToClassify,
@@ -518,6 +518,7 @@ def create_rule_agent() -> Agent:
     Returns:
         Agent instance configured for rule-based classification
     """
+    # Pass function directly as tool - Agent SDK will auto-wrap it
     agent = Agent(
         name="RuleClassifier",
         instructions=RULE_AGENT_INSTRUCTIONS,
