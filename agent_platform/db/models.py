@@ -5,6 +5,7 @@ SQLAlchemy models for storing agent runs, steps, and module information.
 
 from datetime import datetime
 from typing import Optional
+import uuid
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -107,6 +108,60 @@ class Step(Base):
 
     def __repr__(self):
         return f"<Step(run_id={self.run_id}, index={self.index}, role='{self.role}')>"
+
+
+# ============================================================================
+# EVENT-LOG SYSTEM (Digital Twin Foundation)
+# ============================================================================
+
+class Event(Base):
+    """
+    Event-Log for Digital Twin System
+
+    All actions in the system are logged as immutable events.
+    This provides:
+    - Complete audit trail
+    - Learning foundation
+    - Feedback tracking
+    - Historical analysis
+
+    Events are APPEND-ONLY (never updated/deleted).
+    """
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True)
+    event_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+    event_type = Column(String(100), nullable=False, index=True)  # EMAIL_RECEIVED, EMAIL_CLASSIFIED, etc.
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Context
+    account_id = Column(String(100), nullable=True, index=True)  # gmail_1, gmail_2, etc.
+    email_id = Column(String(200), nullable=True, index=True)  # Email message ID (if applicable)
+    user_id = Column(String(100), nullable=True)  # For multi-user support (future)
+
+    # Event data
+    payload = Column(JSON, nullable=False, default={})  # Event-specific data
+    extra_metadata = Column(JSON, nullable=True, default={})  # Additional context (renamed from 'metadata')
+
+    # Performance tracking
+    processing_time_ms = Column(Float, nullable=True)  # Time taken for this event
+
+    def __repr__(self):
+        return f"<Event(event_id='{self.event_id}', type='{self.event_type}', timestamp='{self.timestamp}')>"
+
+    def to_dict(self):
+        """Convert event to dictionary for JSON serialization"""
+        return {
+            'event_id': self.event_id,
+            'event_type': self.event_type,
+            'timestamp': self.timestamp.isoformat(),
+            'account_id': self.account_id,
+            'email_id': self.email_id,
+            'user_id': self.user_id,
+            'payload': self.payload,
+            'extra_metadata': self.extra_metadata,
+            'processing_time_ms': self.processing_time_ms,
+        }
 
 
 # Email-specific tables (optional - for detailed email tracking)

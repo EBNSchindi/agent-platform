@@ -21,6 +21,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 from agent_platform.db.database import get_db
+from agent_platform.events import log_event, EventType
 
 
 @dataclass
@@ -264,15 +265,31 @@ def log_classification(
     confidence: float,
     importance: float,
     llm_provider: str = "",
+    account_id: Optional[str] = None,
 ) -> None:
-    """Log a classification event."""
+    """
+    Log a classification event.
+
+    Logs to both the traditional logging system (Python logger + in-memory metrics)
+    and the new Event-Log system for Digital Twin.
+
+    Args:
+        email_id: Email identifier
+        processing_time_ms: Processing time in milliseconds
+        layer_used: Layer that made the classification (rules, history, llm)
+        category: Classification category
+        confidence: Classification confidence (0.0-1.0)
+        importance: Importance score (0.0-1.0)
+        llm_provider: LLM provider used (if applicable)
+        account_id: Account ID (optional, for event logging)
+    """
     logger = SystemLogger.get_logger()
     logger.info(
         f"Classified {email_id}: {category} "
         f"(confidence={confidence:.2f}, layer={layer_used}, time={processing_time_ms:.0f}ms)"
     )
 
-    # Record in metrics
+    # Record in in-memory metrics
     _metrics_collector.record_classification(
         email_id=email_id,
         processing_time_ms=processing_time_ms,
@@ -282,6 +299,26 @@ def log_classification(
         importance=importance,
         llm_provider=llm_provider,
     )
+
+    # Log to Event-Log system (Digital Twin foundation)
+    try:
+        log_event(
+            event_type=EventType.EMAIL_CLASSIFIED,
+            account_id=account_id,
+            email_id=email_id,
+            payload={
+                'category': category,
+                'confidence': confidence,
+                'importance': importance,
+                'layer_used': layer_used,
+            },
+            extra_metadata={
+                'llm_provider': llm_provider,
+            },
+            processing_time_ms=processing_time_ms,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to log event to Event-Log system: {e}")
 
 
 def log_error(message: str, exception: Optional[Exception] = None) -> None:

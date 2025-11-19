@@ -1,488 +1,299 @@
-# Project Scope: Agent Platform
+# Project Scope: Digital Twin Email Platform
 
-**Version:** 1.0.0
-**Status:** MVP Complete
-**Letztes Update:** 2025-11-19
+**Version:** 2.0.0
+**Status:** Phase 1 in Entwicklung (Event-Log System ✅ Complete)
+**Letztes Update:** 2025-11-20
 **Autor:** Daniel Schindler
+
+---
+
+## 📖 Dokumenten-Navigation
+
+Dieses Projekt hat drei zentrale Dokumente:
+
+1. **PROJECT_SCOPE.md** (dieses Dokument) - **Quick Reference & Aktueller Status**
+   - Was ist das Projekt? (Executive Summary)
+   - Was funktioniert bereits? (Current Status)
+   - Wie starte ich? (Quick Start)
+
+2. **[CLAUDE.md](CLAUDE.md)** - **Technische Patterns & Architektur für AI-Assistenten**
+   - OpenAI Agents SDK Patterns
+   - Code-Konventionen & Best Practices
+   - Häufige Fallstricke & Lösungen
+   - Development Commands
+
+3. **[docs/VISION.md](docs/VISION.md)** - **Big Picture & Langfristige Roadmap**
+   - Digital Twin Konzept & 5-Module-Architektur
+   - Event-First Architecture
+   - Human-in-the-Loop (HITL) Prinzipien
+   - Phase 1-5 Roadmap (2-Jahres-Plan)
+
+💡 **Für neue Entwickler**: Start hier → dann CLAUDE.md → dann VISION.md
+💡 **Für AI-Assistenten**: CLAUDE.md ist dein Hauptdokument
+💡 **Für Stakeholder**: VISION.md zeigt das Big Picture
 
 ---
 
 ## 📋 Executive Summary
 
-Die **Agent Platform** ist eine modulare Multi-Agent-Plattform zur Automatisierung verschiedener Lebensbereiche. Das System basiert auf OpenAI Agents SDK und implementiert bewährte Patterns aus dem OpenAI Agent-Ökosystem.
+Die **Digital Twin Email Platform** ist ein intelligentes Email-Management-System, das als digitaler Zwilling agiert - es lernt kontinuierlich von deinen Entscheidungen und unterstützt dich proaktiv bei der Email-Bearbeitung.
 
-**Aktueller Fokus:** Email-Posteingang-Automatisierung mit Multi-Account-Support, intelligenter Klassifizierung, Draft-Generierung und automatischen Backups.
+**Aktueller Fokus (Phase 1):**
+- ✅ Event-Log System (Foundation für Learning & Digital Twin)
+- ✅ Email Importance Classification (3-Layer: Rules → History → LLM)
+- 🚧 Email Extraction (Tasks, Decisions, Questions)
+- 🚧 Memory-Objects (abgeleitete Strukturen aus Events)
+- 🚧 Daily Journal Generation
 
-**Zukünftige Erweiterungen:** Calendar-Modul, Finance-Modul, Knowledge-Management und weitere Lebensbereiche.
-
----
-
-## 🎯 Projektziele
-
-### Primärziele (MVP - ✅ Erreicht)
-
-1. **Automatisierung des Email-Posteingangs**
-   - Multi-Account-Support (3x Gmail + 1x Ionos)
-   - Intelligente Spam-Klassifizierung
-   - Automatische Draft-Generierung für Antworten
-   - Monatliche Backups auf Backup-Account
-
-2. **Modulare, skalierbare Architektur**
-   - Plugin-System für verschiedene Agent-Module
-   - Zentrale Agent-Registry
-   - Wiederverwendbare Komponenten (Guardrails, Tools)
-
-3. **Sichere Automatisierung**
-   - Input/Output-Guardrails
-   - PII-Erkennung
-   - Phishing-Detection
-   - Compliance-Checks
-
-4. **Flexibles Modi-System**
-   - Draft Mode: Generiert Drafts zur manuellen Review
-   - Auto-Reply Mode: Sendet bei hoher Confidence
-   - Manual Mode: Nur Klassifizierung
-
-### Sekundärziele (Roadmap)
-
-1. **Web-Oberfläche (Dashboard)**
-   - Visualisierung aller Agents
-   - Run-History und Logs
-   - Agent-Konfiguration via UI
-
-2. **REST API**
-   - HTTP-Zugriff auf alle Agents
-   - Webhook-Support für Integrationen
-
-3. **Weitere Module**
-   - Calendar-Modul (Meeting-Scheduling, Reminder)
-   - Finance-Modul (Transaktions-Tracking, Budget)
-   - Knowledge-Modul (Note-Organizing, Research)
-
-4. **Cross-Module-Workflows**
-   - Email → Calendar Integration (Meeting-Requests)
-   - Email → Finance Integration (Rechnung → Budget)
+**Langfristige Vision:** Ein digitaler Zwilling, der alle Lebensbereiche (Email, Calendar, Finance, Health, Knowledge) orchestriert. Details: [docs/VISION.md](docs/VISION.md)
 
 ---
 
-## 🏗️ Architektur
+## 🎯 Aktueller Status (Stand: 2025-11-20)
 
-### Überblick
+### ✅ Was ist fertig (Production Ready)
+
+#### 1. Email Importance Classification System
+- **3-Layer Classification Pipeline** (Rules → History → LLM)
+  - Rule Layer: Pattern-basiert, <1ms, 40-60% Hit Rate
+  - History Layer: Lernt von User-Verhalten, <10ms, 20-30% Hit Rate
+  - LLM Layer: Ollama-first + OpenAI Fallback, 1-3s, höchste Accuracy
+- **Adaptive Learning**: EMA-basiert (α=0.15), lernt aus User-Actions
+- **Multi-Account Support**: 3x Gmail + 1x Ionos
+- **Classification Results**: Kategorien (wichtig, action_required, nice_to_know, newsletter, spam)
+
+**Code**: `agent_platform/classification/` (7 Module, ~2,300 Zeilen, 23/23 Tests ✅)
+
+#### 2. Event-Log System (Digital Twin Foundation)
+- **Immutable Event Store**: Alle Aktionen als append-only Events
+- **Event Types**: EMAIL_CLASSIFIED, EMAIL_RECEIVED, TASK_EXTRACTED, USER_FEEDBACK, etc.
+- **Event Service API**: log_event(), get_events(), count_events()
+- **Database**: SQLite mit Indexing (event_type, timestamp, account_id, email_id)
+
+**Code**: `agent_platform/events/` (3 Module, ~700 Zeilen, 10/10 Tests ✅)
+**Docs**: [docs/phases/PHASE_1_STEP_1_COMPLETE.md](docs/phases/PHASE_1_STEP_1_COMPLETE.md)
+
+#### 3. Feedback & Learning System
+- **Sender/Domain Preferences**: Lernt aus User-Actions (reply, archive, delete, star)
+- **Review Queue**: Medium-confidence Emails zur User-Review
+- **Daily Digest**: HTML Email mit Action Buttons
+- **Feedback Tracking**: FeedbackEvents für Preference-Updates
+
+**Code**: `agent_platform/feedback/`, `agent_platform/review/` (4 Module, ~1,200 Zeilen)
+
+#### 4. Database & Persistence
+- **SQLAlchemy Models**: 10+ Tabellen (Events, ProcessedEmails, SenderPreferences, etc.)
+- **Migrations**: SQL-basiert mit run_migration.py
+- **Schema**: Optimiert für Event-First Architecture
+
+**Code**: `agent_platform/db/models.py` (430 Zeilen), `migrations/`
+
+### 🚧 In Arbeit (Next Steps aus Phase 1)
+
+#### 1. Erweiterte E-Mail-Analyse (Extraktion) - **NEXT**
+- [ ] ExtractionAgent: Task, Decision, Question extraction
+- [ ] Zusammenfassung generation
+- [ ] Event-Logging: TASK_EXTRACTED, DECISION_EXTRACTED, QUESTION_EXTRACTED
+
+#### 2. Memory-Objects erweitern
+- [ ] Database Models: Task, Decision, Question, JournalEntry
+- [ ] Abgeleitet aus Events (Event-First Principle)
+
+#### 3. Tagesjournal-Generierung
+- [ ] Journal-Generator Agent
+- [ ] Markdown Export
+- [ ] Event-Logging: JOURNAL_GENERATED
+
+#### 4. HITL Feedback-Interface
+- [ ] Simple Web-UI für Corrections
+- [ ] Event-Logging: USER_FEEDBACK, USER_CORRECTION
+
+Details: [docs/phases/PHASE_1_SCOPE.md](docs/phases/PHASE_1_SCOPE.md)
+
+### ❌ Noch nicht implementiert (Zukünftige Phasen)
+
+- **Phase 2**: Twin Core (Proaktive Vorschläge, Context Tracking)
+- **Phase 3**: Twin Interface (Conversational UI, Mobile App)
+- **Phase 4**: Weitere Module (Calendar, Finance, Health, Knowledge)
+- **Phase 5**: Cross-Domain Intelligence
+
+Details: [docs/VISION.md](docs/VISION.md)
+
+---
+
+## 🏗️ Architektur-Übersicht
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Agent Platform                        │
-│  ┌────────────────────────────────────────────────┐    │
-│  │  Platform Core                                  │    │
-│  │  - Agent Registry (Module & Agents verwalten)  │    │
-│  │  - Config System (Multi-Account, Modi)         │    │
-│  │  - Database (SQLite/Postgres - Run-Logging)   │    │
-│  │  - Scheduler (APScheduler - zeitgesteuert)    │    │
-│  └────────────────────────────────────────────────┘    │
-│                                                          │
-│  ┌────────────────────────────────────────────────┐    │
-│  │  Modules (Plugins)                             │    │
-│  │  ┌──────────────┐  ┌──────────────┐           │    │
-│  │  │ Email Module │  │ Calendar (🚧)│           │    │
-│  │  │  ✅ Complete │  │   Planned    │           │    │
-│  │  └──────────────┘  └──────────────┘           │    │
-│  │  ┌──────────────┐  ┌──────────────┐           │    │
-│  │  │ Finance (🚧) │  │ Other...     │           │    │
-│  │  │   Planned    │  │              │           │    │
-│  │  └──────────────┘  └──────────────┘           │    │
-│  └────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                  DIGITAL TWIN EMAIL PLATFORM                     │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │  EVENT-LOG SYSTEM (Foundation)                         │    │
+│  │  - Immutable Event Store                               │    │
+│  │  - Event Types (EMAIL_*, TASK_*, USER_*, etc.)        │    │
+│  │  - Event Service API                                   │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                              ▼                                   │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │  ANALYSIS ENGINE                                        │    │
+│  │  ├─ Importance Classifier (3-Layer)                    │    │
+│  │  ├─ Content Extractor (Tasks, Decisions, Questions)    │    │
+│  │  └─ Summarizer                                          │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                              ▼                                   │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │  MEMORY SYSTEM                                          │    │
+│  │  ├─ Sender/Domain Preferences (Learning)               │    │
+│  │  ├─ Memory-Objects (Tasks, Decisions, Questions)       │    │
+│  │  └─ Review Queue & Feedback                            │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                              ▼                                   │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │  TWIN CORE (Future)                                     │    │
+│  │  ├─ Proactive Suggestions                              │    │
+│  │  ├─ Context Tracking                                    │    │
+│  │  └─ Pattern Recognition                                 │    │
+│  └────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Technologie-Stack
-
-| Layer | Technologie | Version | Zweck |
-|-------|-------------|---------|-------|
-| **AI/Agents** | OpenAI Agents SDK | Latest | Agent-Framework |
-| **LLM** | GPT-4o-mini | Latest | AI-Model (schnell, kostengünstig) |
-| **Backend** | Python | 3.10+ | Hauptsprache |
-| **Email APIs** | Gmail API, IMAP/SMTP | - | Email-Zugriff |
-| **Database** | SQLAlchemy + SQLite | 2.0+ | Persistierung |
-| **Scheduler** | APScheduler | 3.10+ | Zeitsteuerung |
-| **Validation** | Pydantic | 2.5+ | Structured Outputs |
-| **Auth** | OAuth 2.0 | - | Gmail-Authentifizierung |
-
-### Design Patterns
-
-1. **Plugin-Architektur**
-   - Module sind eigenständige Plugins
-   - Zentrale Registry für Discovery
-   - Lose Kopplung
-
-2. **Agent-as-Tool Pattern** (aus 2_openai/Lab 2)
-   - Agents werden als Tools für andere Agents verwendet
-   - Responder-Orchestrator nutzt 3 spezialisierte Sub-Agents
-
-3. **Structured Outputs** (aus 2_openai/Lab 3)
-   - Pydantic-Models für type-safe Kommunikation
-   - Classifier → EmailClassification
-   - Responder → EmailResponse
-
-4. **Guardrails Pattern** (aus 2_openai/Lab 3)
-   - Input Guardrails: Vor Agent-Ausführung
-   - Output Guardrails: Nach Agent-Ausführung
-   - Tripwire-Mechanismus für kritische Fälle
-
-5. **Orchestration Pattern** (aus 2_openai/Lab 4)
-   - Master-Orchestrator koordiniert Workflow
-   - Parallel-Execution für Batch-Processing
-   - Zustandsverwaltung über Context Store
+**Architektur-Prinzipien**: Siehe [docs/VISION.md](docs/VISION.md) und [CLAUDE.md](CLAUDE.md)
 
 ---
 
-## ✅ Scope: Was ist DRIN (MVP)
+## 🚀 Quick Start
 
-### Email-Modul (100% implementiert)
+### Prerequisites
+- Python 3.10+
+- OpenAI API Key
+- Gmail API Credentials (optional: nur für Gmail-Accounts)
+- Ollama (optional: für lokales LLM)
 
-#### Features
-- ✅ Multi-Account-Support (3x Gmail + 1x Ionos)
-- ✅ Unread Email Fetching (Gmail API + IMAP)
-- ✅ Email-Klassifizierung:
-  - Spam-Detection
-  - Important/Normal/Auto-Reply-Candidate
-  - Confidence-Scoring
-  - Urgency-Assessment
-- ✅ Draft-Generierung:
-  - 3 Tone-Varianten (Professional, Friendly, Brief)
-  - Automatic Tone Selection
-  - Confidence-based Quality-Assessment
-- ✅ Modi-System:
-  - Draft Mode (generiert Drafts)
-  - Auto-Reply Mode (sendet bei hoher Confidence)
-  - Manual Mode (nur Klassifizierung)
-  - Pro-Account konfigurierbar
-- ✅ Guardrails:
-  - PII-Erkennung (Input)
-  - Phishing-Detection (Input)
-  - Compliance-Checks (Output)
-  - Risk-Assessment
-- ✅ Backup:
-  - Monatliches vollständiges Backup
-  - Backup auf separatem Gmail-Account
-  - Alle 4 Source-Accounts
-- ✅ Scheduler:
-  - Stündliche Inbox-Checks
-  - Monatliches Backup (1. Tag, 3 Uhr)
-  - Täglicher Spam-Cleanup (2 Uhr)
+### Installation
 
-#### Tools
-- ✅ Gmail API Tools (fetch, create_draft, label, archive, send)
-- ✅ Ionos IMAP/SMTP Tools
+```bash
+# 1. Virtual Environment erstellen
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# oder: venv\Scripts\activate  # Windows
 
-#### Agents
-- ✅ Classifier Agent (EmailClassification mit Structured Output)
-- ✅ Responder Agent (3 Sub-Agents + Orchestrator)
-- ✅ Backup Agent
+# 2. Dependencies installieren
+pip install -r requirements.txt
 
-#### Scripts
-- ✅ `run_classifier.py` - Test Klassifizierung
-- ✅ `run_responder.py` - Test Draft-Generierung
-- ✅ `run_full_workflow.py` - Interaktiver Multi-Account-Test
-- ✅ `run_scheduler.py` - Automatischer Betrieb
+# 3. Environment konfigurieren
+cp .env.example .env
+# .env editieren: OPENAI_API_KEY, Gmail credentials, etc.
 
-#### Dokumentation
-- ✅ `README.md` - Vollständige Dokumentation
-- ✅ `QUICKSTART.md` - 5-Minuten-Setup
-- ✅ `PROJECT_SCOPE.md` - Dieses Dokument
-- ✅ `credentials/README.md` - Gmail API Setup
-- ✅ `.env.example` - Konfigurationstemplate
+# 4. Database initialisieren
+python migrations/run_migration.py
+
+# 5. Test: Email Classification
+PYTHONPATH=. python scripts/test_classification.py
+```
+
+### Development Commands
+
+Siehe [CLAUDE.md](CLAUDE.md) für alle Development Commands und Patterns.
 
 ---
 
-## ❌ Scope: Was ist NICHT DRIN (Out of Scope für MVP)
-
-### Nicht implementiert (aber geplant)
-
-1. **Web-Dashboard / UI**
-   - Visualisierung von Agents
-   - Run-History Browser
-   - Live-Monitoring
-   - Agent-Konfiguration via UI
-
-2. **REST API**
-   - HTTP-Endpunkte für Agents
-   - Webhook-Support
-   - API-Dokumentation (OpenAPI/Swagger)
-
-3. **Weitere Module**
-   - Calendar-Modul
-   - Finance-Modul
-   - Knowledge-Modul
-   - Health-Modul
-
-4. **Cross-Module-Features**
-   - Email → Calendar Integration
-   - Email → Finance Integration
-   - Shared Context Store zwischen Modulen
-
-5. **Advanced Features**
-   - Machine Learning für bessere Klassifizierung
-   - Custom Guardrails per User
-   - A/B-Testing für Tone-Varianten
-   - Multi-Language-Support (aktuell: Deutsch/Englisch gemischt)
-
-### Bewusst ausgeschlossen
-
-1. **Auto-Delete von Spam**
-   - Zu riskant (False Positives)
-   - Nur Labeling + Archivierung
-
-2. **Unbegrenzte Auto-Replies**
-   - Nur bei hoher Confidence (>85%)
-   - Guardrails verhindern problematische Antworten
-
-3. **Direkte Änderungen an Original-Emails**
-   - Nur Labeling, keine Modifikation
-   - Backups sind read-only Copies
-
----
-
-## 📊 Aktuelle Implementierung
-
-### Dateien & Code-Statistik
+## 📊 Code-Statistik
 
 ```
-📁 Projekt-Struktur:
-   24 Python-Dateien
-   ~3,500 Zeilen Code
+📁 agent_platform/ (Main Package)
+   ├── classification/      ~2,300 Zeilen (3-Layer Classifier)
+   ├── events/              ~700 Zeilen (Event-Log System)
+   ├── feedback/            ~800 Zeilen (Learning & Feedback)
+   ├── review/              ~400 Zeilen (Review Queue & Digest)
+   ├── db/                  ~600 Zeilen (Models & Database)
+   ├── llm/                 ~300 Zeilen (Ollama + OpenAI)
+   └── monitoring.py        ~360 Zeilen (Logging & Metrics)
 
-📦 Platform Core:
-   - platform/core/registry.py (Agent Registry)
-   - platform/core/config.py (Config System)
-   - platform/db/models.py (DB Models)
-   - platform/db/database.py (DB Connection)
+   TOTAL: ~5,460 Zeilen Production Code
 
-🔌 Email-Modul:
-   Agents:
-   - modules/email/agents/classifier.py
-   - modules/email/agents/responder.py
-   - modules/email/agents/orchestrator.py
-   - modules/email/agents/backup.py
+📁 tests/
+   ├── classification/      ~900 Zeilen (23 Tests)
+   ├── events/              ~400 Zeilen (10 Tests)
+   ├── feedback/            ~300 Zeilen (8 Tests)
+   └── integration/         ~200 Zeilen (5 Tests)
 
-   Tools:
-   - modules/email/tools/gmail_tools.py
-   - modules/email/tools/ionos_tools.py
+   TOTAL: ~1,800 Zeilen Test Code
+   TEST COVERAGE: 46/46 Tests passing (100%) ✅
 
-   Guardrails:
-   - modules/email/guardrails/email_guardrails.py
+📁 docs/
+   ├── VISION.md            ~1,000 Zeilen (Big Picture)
+   ├── phases/              ~2,000 Zeilen (Phase Documentation)
+   └── setup/               ~500 Zeilen (Setup Guides)
 
-   Module:
-   - modules/email/module.py
-
-🧪 Scripts:
-   - scripts/run_classifier.py
-   - scripts/run_responder.py
-   - scripts/run_full_workflow.py
-   - scripts/run_scheduler.py
-
-📚 Dokumentation:
-   - README.md
-   - QUICKSTART.md
-   - PROJECT_SCOPE.md
-   - credentials/README.md
-```
-
-### Datenbank-Schema
-
-```sql
--- Platform Core
-modules (id, name, version, description, active, ...)
-agents (id, module_id, agent_id, name, agent_type, ...)
-runs (id, agent_id, run_id, status, started_at, finished_at, ...)
-steps (id, run_id, index, role, content, ...)
-
--- Email-Specific
-email_accounts (id, account_id, account_type, email_address, mode, ...)
-processed_emails (id, account_id, email_id, category, confidence, ...)
+   TOTAL: ~3,500 Zeilen Documentation
 ```
 
 ---
 
 ## 🗓️ Roadmap
 
-### Phase 1: MVP ✅ COMPLETE (Nov 2025)
+### Phase 1: Email Intelligence & Digital Twin Foundation (Aktuell)
+**Zeitraum**: Nov 2025 - Jan 2026 (3 Monate)
 
-- ✅ Platform Core (Registry, Config, DB)
-- ✅ Email-Modul (vollständig)
-- ✅ Guardrails (PII, Phishing, Compliance)
-- ✅ Backup Agent
-- ✅ Scheduler
-- ✅ Test-Scripts
-- ✅ Dokumentation
+- ✅ **Week 1-2**: Email Classification System (COMPLETE)
+- ✅ **Week 3**: Event-Log System (COMPLETE)
+- 🚧 **Week 4**: Email Extraction (Tasks, Decisions, Questions)
+- 🚧 **Week 5**: Memory-Objects & Journal
+- 🚧 **Week 6**: HITL Feedback Interface
 
-### Phase 2: API & Dashboard 🚧 PLANNED (Dez 2025)
+**Status**: 40% Complete (2/5 Steps)
 
-- [ ] FastAPI REST API
-  - [ ] `/agents` - Agent-Management
-  - [ ] `/runs` - Run-History
-  - [ ] `/modules` - Module-Management
-  - [ ] Webhook-Support
-- [ ] Web Dashboard (React/Next.js)
-  - [ ] Agent-Übersicht
-  - [ ] Run-Timeline
-  - [ ] Live-Monitoring
-  - [ ] Config-Editor
-
-### Phase 3: Weitere Module 🚧 PLANNED (Q1 2026)
-
-- [ ] Calendar-Modul
-  - [ ] Meeting-Scheduler Agent
-  - [ ] Reminder Agent
-  - [ ] Availability-Checker
-  - [ ] Google Calendar API Integration
-- [ ] Finance-Modul
-  - [ ] Transaction-Tracker Agent
-  - [ ] Budget-Advisor Agent
-  - [ ] Tax-Helper Agent
-  - [ ] Banking API Integration
-
-### Phase 4: Cross-Module & Advanced 🔮 FUTURE
-
-- [ ] Cross-Module-Workflows
-  - [ ] Email → Calendar (Meeting-Requests)
-  - [ ] Email → Finance (Rechnungen)
-- [ ] Master Orchestrator
-  - [ ] Morning Briefing (über alle Module)
-  - [ ] Proaktive Vorschläge
-- [ ] Advanced Features
-  - [ ] Machine Learning Integration
-  - [ ] Custom Guardrails
-  - [ ] Multi-Language-Support
+### Phase 2-5: Siehe [docs/VISION.md](docs/VISION.md)
 
 ---
 
-## 🔗 Abhängigkeiten
+## 🛠️ Technologie-Stack
 
-### Externe Services
+| Kategorie | Technologie | Version | Zweck |
+|-----------|-------------|---------|-------|
+| **AI/LLM** | OpenAI gpt-4o | Latest | Primary LLM |
+| **AI/LLM** | Ollama (qwen2.5:20b) | Latest | Local LLM (fallback) |
+| **Framework** | OpenAI Agents SDK | 0.1.0+ | Agent Framework |
+| **Language** | Python | 3.10+ | Main Language |
+| **Database** | SQLAlchemy + SQLite | 2.0+ | Persistence |
+| **Validation** | Pydantic | 2.5+ | Structured Outputs |
+| **Email** | Gmail API, IMAP/SMTP | - | Email Access |
+| **Scheduler** | APScheduler | 3.10+ | Task Scheduling |
 
-| Service | Zweck | Erforderlich |
-|---------|-------|--------------|
-| **OpenAI API** | LLM für Agents | ✅ Ja |
-| **Gmail API** | Gmail-Zugriff (OAuth) | ✅ Ja (für Gmail-Accounts) |
-| **Google Cloud** | OAuth Credentials | ✅ Ja (für Gmail-Accounts) |
-| **IMAP/SMTP** | Ionos Email-Zugriff | ⚠️ Optional (nur für Ionos) |
-
-### Python-Pakete (requirements.txt)
-
-```
-Core:
-- openai>=1.54.0
-- agents-sdk>=0.1.0
-- pydantic>=2.5.0
-- python-dotenv>=1.0.0
-
-Google APIs:
-- google-api-python-client>=2.100.0
-- google-auth-httplib2>=0.1.1
-- google-auth-oauthlib>=1.1.0
-
-Database:
-- sqlalchemy>=2.0.23
-- alembic>=1.13.0
-
-Scheduler:
-- apscheduler>=3.10.4
-
-Async:
-- aiohttp>=3.9.0
-```
+Details: [CLAUDE.md](CLAUDE.md)
 
 ---
 
-## 🔐 Sicherheit & Datenschutz
+## 📏 Definition of Done (Phase 1)
 
-### Implementierte Sicherheitsmaßnahmen
+### MVP Kriterien
+- ✅ Event-Log System produktionsreif
+- ✅ Email Classification >85% Accuracy nach 2 Wochen Learning
+- 🚧 Task/Decision/Question Extraction funktional
+- 🚧 Daily Journal generiert
+- 🚧 HITL Feedback-Interface funktional
+- 🚧 Alle Tests passing (>90% Coverage)
+- 🚧 Deployment Guide vollständig
 
-1. **Credentials-Management**
-   - OAuth 2.0 für Gmail
-   - Credentials nie in Code oder Git
-   - `.gitignore` für alle sensitiven Dateien
-   - Token-Rotation via OAuth
-
-2. **Guardrails**
-   - PII-Erkennung verhindert Leaking von persönlichen Daten
-   - Phishing-Detection schützt vor Malware
-   - Compliance-Checks verhindern rechtliche Probleme
-
-3. **Modi-System**
-   - Draft Mode als sicherer Standard
-   - Auto-Reply nur bei hoher Confidence
-   - Tripwire-Mechanismus stoppt kritische Fälle
-
-4. **Datenbank**
-   - Lokale SQLite (keine Cloud)
-   - Logs können gelöscht werden
-   - Kein Tracking von Inhalten
-
-### GDPR-Konformität
-
-- ✅ Alle Daten lokal gespeichert
-- ✅ Keine externen Tracker
-- ✅ User hat volle Kontrolle
-- ✅ Daten können gelöscht werden
-- ⚠️ OpenAI API: Daten werden verarbeitet (gemäß OpenAI Terms)
+**Current Progress**: 2/7 Kriterien erfüllt (29%)
 
 ---
 
-## 🧪 Testing
+## 🔗 Wichtige Links
 
-### Aktueller Test-Coverage
-
-- ✅ **Manuelle Tests**: Alle Scripts funktionsfähig
-- ✅ **Integration Tests**: Multi-Account-Workflow getestet
-- ⚠️ **Unit Tests**: Noch nicht implementiert (geplant)
-- ⚠️ **E2E Tests**: Noch nicht implementiert (geplant)
-
-### Test-Strategie
-
-```python
-# Geplante Test-Struktur
-tests/
-├── unit/
-│   ├── test_classifier.py
-│   ├── test_responder.py
-│   └── test_guardrails.py
-├── integration/
-│   ├── test_gmail_tools.py
-│   └── test_orchestrator.py
-└── e2e/
-    └── test_full_workflow.py
-```
+- **Vision & Roadmap**: [docs/VISION.md](docs/VISION.md)
+- **Phase 1 Scope**: [docs/phases/PHASE_1_SCOPE.md](docs/phases/PHASE_1_SCOPE.md)
+- **Event-Log System**: [docs/phases/PHASE_1_STEP_1_COMPLETE.md](docs/phases/PHASE_1_STEP_1_COMPLETE.md)
+- **Technical Patterns**: [CLAUDE.md](CLAUDE.md)
+- **Setup Guide**: [docs/setup/DEPLOYMENT.md](docs/setup/DEPLOYMENT.md)
 
 ---
 
-## 📏 Erfolgs-Kriterien
-
-### MVP (✅ Erreicht)
-
-- ✅ Alle 4 Email-Accounts werden unterstützt
-- ✅ Spam-Klassifizierung funktioniert zuverlässig
-- ✅ Draft-Generierung in allen 3 Tones
-- ✅ Modi-System funktioniert pro Account
-- ✅ Guardrails verhindern kritische Fehler
-- ✅ Monatliches Backup läuft automatisch
-- ✅ Scheduler führt Tasks aus
-- ✅ Dokumentation ist vollständig
-
-### Phase 2 (Zukünftig)
-
-- [ ] REST API mit 100% Coverage aller Features
-- [ ] Web Dashboard mit allen Agents
-- [ ] <1s Response-Zeit für API-Calls
-- [ ] 99% Uptime für Scheduler
-
----
-
-## 🤝 Beitragende
+## 🤝 Team
 
 - **Hauptentwickler**: Daniel Schindler
 - **AI-Assistent**: Claude (Anthropic) via Claude Code
-- **Basierend auf**: OpenAI Agents SDK, 2_openai/ Labs 1-4
+- **Basierend auf**: OpenAI Agents SDK Patterns
 
 ---
 
@@ -494,22 +305,14 @@ Privates Projekt - Keine öffentliche Lizenz
 
 ## 🔄 Versions-Historie
 
-| Version | Datum | Änderungen |
-|---------|-------|------------|
-| 1.0.0 | 2025-11-19 | MVP Complete - Email-Modul vollständig implementiert |
-| 0.1.0 | 2025-11-19 | Projekt-Setup, Platform Core |
+| Version | Datum | Meilenstein |
+|---------|-------|-------------|
+| 2.0.0 | 2025-11-20 | Event-Log System Complete, Digital Twin Architecture |
+| 1.0.0 | 2025-11-19 | Email Classification System Complete (3-Layer) |
+| 0.1.0 | 2025-11-15 | Projekt-Setup, Initial Classifier |
 
 ---
 
-## 📞 Kontakt & Support
-
-Bei Fragen oder Problemen:
-1. Konsultiere `README.md` und `QUICKSTART.md`
-2. Prüfe `.env` Konfiguration
-3. Checke Logs in Terminal
-4. Review `2_openai/` Patterns für Beispiele
-
----
-
-**Letztes Update:** 2025-11-19
-**Status:** ✅ MVP COMPLETE
+**Status**: 🚧 Phase 1 in Development (2/5 Steps Complete)
+**Letztes Update**: 2025-11-20
+**Nächster Meilenstein**: Email Extraction Agent (ETA: Week 4)
