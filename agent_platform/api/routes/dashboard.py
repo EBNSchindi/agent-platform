@@ -3,9 +3,9 @@ Dashboard API Routes
 Aggregated statistics and overview data for the cockpit.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from collections import defaultdict
@@ -89,6 +89,26 @@ class TodaySummary(BaseModel):
     decisions_made: int
     questions_answered: int
     top_senders: List[TopSender]
+
+
+class ActivityItem(BaseModel):
+    """Activity feed item."""
+    activity_id: str
+    timestamp: str
+    event_type: str
+    description: str
+    icon_type: str  # email, task, decision, question, user, system
+    account_id: Optional[str]
+    email_id: Optional[str]
+    metadata: Dict[str, Any]
+
+
+class ActivityFeedResponse(BaseModel):
+    """Activity feed response."""
+    items: List[ActivityItem]
+    total: int
+    limit: int
+    offset: int
 
 
 # ============================================================================
@@ -258,4 +278,129 @@ def get_today_summary(db: Session = Depends(get_db_session)):
         decisions_made=decisions_made,
         questions_answered=questions_answered,
         top_senders=top_senders
+    )
+
+
+@router.get("/dashboard/activity", response_model=ActivityFeedResponse)
+def get_activity_feed(
+    limit: int = Query(20, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db_session)
+):
+    """
+    Get recent activity feed (event-based timeline).
+
+    Returns recent events across all systems:
+    - Email classifications
+    - Task extractions/completions
+    - Decision extractions/resolutions
+    - Question extractions/answers
+    - User interactions
+    - Journal generation
+
+    Query Parameters:
+        - limit: Max results (default: 20, max: 100)
+        - offset: Pagination offset
+    """
+    # Get recent events (last 24 hours, most recent first)
+    yesterday = datetime.utcnow() - timedelta(days=1)
+
+    # Get events from event log
+    events = get_events(
+        start_time=yesterday,
+        limit=limit + offset  # Fetch more to account for offset
+    )
+
+    # Transform events into activity items
+    activities = []
+    for event in events:
+        activity = _event_to_activity_item(event)
+        if activity:
+            activities.append(activity)
+
+    # Apply offset and limit
+    paginated_activities = activities[offset:offset + limit]
+
+    return ActivityFeedResponse(
+        items=paginated_activities,
+        total=len(activities),
+        limit=limit,
+        offset=offset
+    )
+
+
+def _event_to_activity_item(event) -> Optional[ActivityItem]:
+    """Convert event to activity item with human-readable description."""
+
+    # Map event types to descriptions and icons
+    event_mappings = {
+        'EMAIL_CLASSIFIED': {
+            'icon': 'email',
+            'template': 'Email classified as {category} ({confidence:.0%} confidence)'
+        },
+        'EMAIL_RECEIVED': {
+            'icon': 'email',
+            'template': 'New email received'
+        },
+        'TASK_EXTRACTED': {
+            'icon': 'task',
+            'template': 'Task extracted from email'
+        },
+        'TASK_COMPLETED': {
+            'icon': 'task',
+            'template': 'Task completed'
+        },
+        'DECISION_EXTRACTED': {
+            'icon': 'decision',
+            'template': 'Decision extracted from email'
+        },
+        'QUESTION_EXTRACTED': {
+            'icon': 'question',
+            'template': 'Question extracted from email'
+        },
+        'USER_CONFIRMATION': {
+            'icon': 'user',
+            'template': 'User confirmed classification'
+        },
+        'USER_CORRECTION': {
+            'icon': 'user',
+            'template': 'User corrected classification'
+        },
+        'USER_FEEDBACK': {
+            'icon': 'user',
+            'template': 'User provided feedback'
+        },
+        'JOURNAL_GENERATED': {
+            'icon': 'system',
+            'template': 'Daily journal generated'
+        },
+    }
+
+    event_type_str = event.event_type if isinstance(event.event_type, str) else event.event_type.value
+    mapping = event_mappings.get(event_type_str)
+
+    if not mapping:
+        # Default fallback for unmapped event types
+        mapping = {
+            'icon': 'system',
+            'template': event_type_str.replace('_', ' ').title()
+        }
+
+    # Build description from template and payload
+    try:
+        payload = event.payload or {}
+        description = mapping['template'].format(**payload)
+    except (KeyError, ValueError, AttributeError):
+        # Fallback if template formatting fails
+        description = mapping['template']
+
+    return ActivityItem(
+        activity_id=event.event_id,
+        timestamp=event.timestamp.isoformat(),
+        event_type=event_type_str,
+        description=description,
+        icon_type=mapping['icon'],
+        account_id=event.account_id,
+        email_id=event.email_id,
+        metadata=event.payload or {}
     )

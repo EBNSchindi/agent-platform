@@ -99,9 +99,9 @@ export default function EmailAgentPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {runs.items.map((run) => (
+                {runs.items.map((run, index) => (
                   <tr
-                    key={run.run_id}
+                    key={`${run.run_id}-${index}`}
                     className="hover:bg-gray-50 cursor-pointer transition"
                     onClick={() => window.location.href = `/email-agent/runs/${run.run_id}`}
                   >
