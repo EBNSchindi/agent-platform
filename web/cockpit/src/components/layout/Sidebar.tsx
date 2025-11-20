@@ -9,7 +9,8 @@ import {
   MessageSquare,
   Zap,
   Settings,
-  Mail
+  Mail,
+  CheckSquare
 } from 'lucide-react';
 
 interface NavItem {
@@ -23,6 +24,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: 'Cockpit', icon: Home },
   { href: '/email-agent', label: 'Email-Agent', icon: Mail },
+  { href: '/review-queue', label: 'Review Queue', icon: CheckSquare },
   { href: '/agents', label: 'Agents', icon: Users, badge: '3' },
   { href: '/inbox', label: 'Inbox', icon: Inbox },
   { href: '/chat', label: 'Chat', icon: MessageSquare, disabled: true },

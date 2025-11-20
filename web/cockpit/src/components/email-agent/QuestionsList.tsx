@@ -101,7 +101,7 @@ export function QuestionsList({ questions }: QuestionsListProps) {
                   </span>
 
                   {/* Response Required */}
-                  {question.requires_response && (
+                  {(question as any).requires_response && (
                     <div className="flex items-center gap-1 text-orange-600">
                       <AlertCircle className="w-4 h-4" />
                       <span className="text-xs font-medium">Response required</span>
