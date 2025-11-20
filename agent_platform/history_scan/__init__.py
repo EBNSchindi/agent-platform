@@ -7,6 +7,7 @@ from agent_platform.history_scan.models import (
     ScanProgress,
     ScanConfig,
     ScanResult,
+    ScanCheckpoint,
 )
 from agent_platform.history_scan.history_scan_service import HistoryScanService
 
@@ -16,4 +17,5 @@ __all__ = [
     'ScanProgress',
     'ScanConfig',
     'ScanResult',
+    'ScanCheckpoint',
 ]

@@ -35,6 +35,20 @@ from agent_platform.db.models import Attachment
 # FIXTURES
 # ============================================================================
 
+@pytest.fixture(autouse=True)
+def clean_database():
+    """Clean database before each test to ensure isolation."""
+    with get_db() as db:
+        # Clean attachments table
+        db.query(Attachment).delete()
+        db.commit()
+    yield
+    # Cleanup after test as well
+    with get_db() as db:
+        db.query(Attachment).delete()
+        db.commit()
+
+
 @pytest.fixture
 def temp_storage_dir():
     """Create temporary storage directory for tests."""

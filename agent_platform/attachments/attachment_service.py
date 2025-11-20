@@ -113,6 +113,10 @@ class AttachmentService:
         safe_filename = "".join(c for c in filename if c.isalnum() or c in "._- ")
         safe_filename = safe_filename.strip()
 
+        # Remove path traversal patterns (consecutive dots)
+        while ".." in safe_filename:
+            safe_filename = safe_filename.replace("..", ".")
+
         # Create subdirectory structure
         email_dir = self.storage_dir / account_id / email_id
         email_dir.mkdir(parents=True, exist_ok=True)

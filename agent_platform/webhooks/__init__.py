@@ -6,6 +6,8 @@ from agent_platform.webhooks.models import (
     PushNotification,
     SubscriptionConfig,
     SubscriptionStatus,
+    SubscriptionInfo,
+    WebhookEvent,
 )
 from agent_platform.webhooks.webhook_service import WebhookService
 
@@ -14,4 +16,6 @@ __all__ = [
     'PushNotification',
     'SubscriptionConfig',
     'SubscriptionStatus',
+    'SubscriptionInfo',
+    'WebhookEvent',
 ]
