@@ -28,6 +28,22 @@ from agent_platform.db.models import ProcessedEmail, EmailAccount
 # FIXTURES
 # ============================================================================
 
+@pytest.fixture(autouse=True)
+def clean_database():
+    """Clean database before each test to ensure isolation."""
+    with get_db() as db:
+        # Clean processed_emails and email_accounts tables
+        db.query(ProcessedEmail).delete()
+        db.query(EmailAccount).delete()
+        db.commit()
+    yield
+    # Cleanup after test as well
+    with get_db() as db:
+        db.query(ProcessedEmail).delete()
+        db.query(EmailAccount).delete()
+        db.commit()
+
+
 @pytest.fixture
 def mock_llm_provider():
     """Mock LLM provider for thread summarization."""
@@ -50,7 +66,7 @@ def sample_thread_emails():
             account = EmailAccount(
                 account_id="test_thread_account",
                 email_address="test@example.com",
-                provider="gmail",
+                account_type="gmail",
             )
             db.add(account)
             db.flush()
@@ -536,7 +552,7 @@ class TestEdgeCases:
             account = EmailAccount(
                 account_id="test_single",
                 email_address="test@example.com",
-                provider="gmail",
+                account_type="gmail",
             )
             db.add(account)
             db.flush()
@@ -578,7 +594,7 @@ class TestEdgeCases:
             account = EmailAccount(
                 account_id="test_missing",
                 email_address="test@example.com",
-                provider="gmail",
+                account_type="gmail",
             )
             db.add(account)
             db.flush()

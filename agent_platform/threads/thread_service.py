@@ -54,7 +54,22 @@ class ThreadService:
                     ProcessedEmail.account.has(account_id=account_id)
                 )
 
-            return query.order_by(ProcessedEmail.received_at).all()
+            emails = query.order_by(ProcessedEmail.received_at).all()
+
+            # Force load all attributes before session closes
+            for email in emails:
+                # Access all attributes that will be needed outside session
+                # This loads them into the object's __dict__ before detachment
+                _ = (email.id, email.email_id, email.subject, email.sender,
+                     email.received_at, email.body_text, email.summary,
+                     email.thread_summary, email.thread_position, email.is_thread_start,
+                     email.thread_id, email.account_id)
+
+            # Expunge objects from session so they can be used outside session
+            for email in emails:
+                db.expunge(email)
+
+            return emails
 
     async def summarize_thread(
         self,
