@@ -357,10 +357,13 @@ class HistoryScanService:
         email_ids = [msg['id'] for msg in messages]
 
         with get_db() as db:
+            # Join with EmailAccount to get account_id string
+            from agent_platform.db.models import EmailAccount
             processed_ids = set(
                 row[0] for row in db.query(ProcessedEmail.email_id)
+                .join(EmailAccount, ProcessedEmail.account_id == EmailAccount.id)
                 .filter(
-                    ProcessedEmail.account_id == account_id,
+                    EmailAccount.account_id == account_id,
                     ProcessedEmail.email_id.in_(email_ids),
                 )
                 .all()

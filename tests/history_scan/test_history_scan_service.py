@@ -73,17 +73,23 @@ def mock_gmail_service():
 
 @pytest.fixture
 def mock_orchestrator():
-    """Mock classification orchestrator."""
+    """Mock classification orchestrator with artificial delay."""
     orchestrator = AsyncMock(spec=ClassificationOrchestrator)
-    orchestrator.process_emails = AsyncMock(return_value={
-        'total_processed': 1,
-        'high_confidence': 0,
-        'medium_confidence': 1,
-        'low_confidence': 0,
-        'tasks_extracted': 1,
-        'decisions_extracted': 0,
-        'questions_extracted': 0,
-    })
+
+    async def slow_process(*args, **kwargs):
+        # Add delay to simulate processing time
+        await asyncio.sleep(0.2)
+        return {
+            'total_processed': 1,
+            'high_confidence': 0,
+            'medium_confidence': 1,
+            'low_confidence': 0,
+            'tasks_extracted': 1,
+            'decisions_extracted': 0,
+            'questions_extracted': 0,
+        }
+
+    orchestrator.process_emails = slow_process
     return orchestrator
 
 
@@ -644,12 +650,25 @@ class TestSkipAlreadyProcessed:
         """Test that already-processed emails are skipped."""
         # Add email to database as already processed
         with get_db() as db:
-            account = EmailAccount(
-                account_id="test_skip_account",
-                email_address="test@example.com",
-                provider="gmail",
-            )
-            db.add(account)
+            # Get or create account
+            account = db.query(EmailAccount).filter(
+                EmailAccount.account_id == "test_skip_account"
+            ).first()
+
+            if not account:
+                account = EmailAccount(
+                    account_id="test_skip_account",
+                    email_address="test@example.com",
+                    account_type="gmail",
+                )
+                db.add(account)
+                db.flush()
+
+            # Delete any existing processed email for this test
+            db.query(ProcessedEmail).filter(
+                ProcessedEmail.email_id == "msg_001",
+                ProcessedEmail.account_id == account.id,
+            ).delete()
             db.flush()
 
             processed = ProcessedEmail(
