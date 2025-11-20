@@ -229,24 +229,9 @@ class ClassificationOrchestrator:
         print(f"   🎯 Confidence: {confidence:.0%}")
         print(f"   🏷️  Layer: {layer_used}")
 
-        # Step 2: Extract information (Tasks, Decisions, Questions)
-        print(f"   🔎 Extracting information...")
-        extraction = await self.extraction_agent.extract(email_to_classify)
-
-        print(f"   📋 Extracted: {extraction.task_count} tasks, "
-              f"{extraction.decision_count} decisions, "
-              f"{extraction.question_count} questions")
-
         # Update stats
         stats.total_processed += 1
         stats.by_category[category] = stats.by_category.get(category, 0) + 1
-
-        # Update extraction stats
-        if extraction.total_items > 0:
-            stats.emails_with_extractions += 1
-        stats.total_tasks_extracted += extraction.task_count
-        stats.total_decisions_extracted += extraction.decision_count
-        stats.total_questions_extracted += extraction.question_count
 
         # Route based on confidence
         if confidence >= self.HIGH_CONFIDENCE_THRESHOLD:
@@ -270,8 +255,26 @@ class ClassificationOrchestrator:
                 email, classification, category, account_id, stats
             )
 
-        # Save ProcessedEmail record
-        self._save_processed_email(email, classification, account_id)
+        # Save ProcessedEmail record FIRST (needed for FK linkage)
+        processed_email_id = self._save_processed_email(email, classification, account_id)
+
+        # Step 2: Extract information AND persist to Memory-Objects
+        print(f"   🔎 Extracting information...")
+        extraction = await self.extraction_agent.extract_and_persist(
+            email_to_classify,
+            processed_email_id=processed_email_id
+        )
+
+        print(f"   📋 Extracted & Persisted: {extraction.task_count} tasks, "
+              f"{extraction.decision_count} decisions, "
+              f"{extraction.question_count} questions")
+
+        # Update extraction stats
+        if extraction.total_items > 0:
+            stats.emails_with_extractions += 1
+        stats.total_tasks_extracted += extraction.task_count
+        stats.total_decisions_extracted += extraction.decision_count
+        stats.total_questions_extracted += extraction.question_count
 
     # ========================================================================
     # CONFIDENCE-BASED ROUTING
@@ -347,8 +350,13 @@ class ClassificationOrchestrator:
         email: Dict[str, Any],
         classification,
         account_id: str,
-    ):
-        """Save ProcessedEmail record to database."""
+    ) -> int:
+        """
+        Save ProcessedEmail record to database.
+
+        Returns:
+            processed_email.id (needed for FK linkage with memory objects)
+        """
         # Determine account_id for database (integer foreign key)
         # For now, use a placeholder - in production, this would lookup the account ID
         # from email_accounts table
@@ -390,6 +398,9 @@ class ClassificationOrchestrator:
 
         self.db.add(processed_email)
         self.db.commit()
+        self.db.refresh(processed_email)  # Get the generated ID
+
+        return processed_email.id
 
     # ========================================================================
     # HELPER METHODS
