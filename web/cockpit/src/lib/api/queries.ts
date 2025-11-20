@@ -12,6 +12,16 @@ import type {
   TaskItem,
   RecentResult,
 } from '../types/dashboard';
+import type {
+  ReviewQueueItem,
+  ReviewQueueListResponse,
+  ReviewQueueStats,
+  ReviewQueueFilters,
+  ApproveRequest,
+  RejectRequest,
+  ModifyRequest,
+  ActionResponse,
+} from '../types/review-queue';
 
 // ============================================================================
 // Email-Agent Queries
@@ -194,5 +204,158 @@ export const useRecentResults = (limit: number = 10) => {
       return results;
     },
     refetchInterval: 30000, // Refresh every 30s
+  });
+};
+
+// ============================================================================
+// Review Queue Queries
+// ============================================================================
+
+export const useReviewQueue = (filters?: ReviewQueueFilters) => {
+  return useQuery({
+    queryKey: ['review-queue', 'list', filters],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ReviewQueueListResponse>('/review-queue', {
+        params: filters,
+      });
+      return data;
+    },
+    refetchInterval: 15000, // Refresh every 15s
+  });
+};
+
+export const useReviewQueueItem = (itemId: number) => {
+  return useQuery({
+    queryKey: ['review-queue', 'item', itemId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ReviewQueueItem>(`/review-queue/${itemId}`);
+      return data;
+    },
+    enabled: !!itemId,
+  });
+};
+
+export const useReviewQueueStats = (accountId?: string) => {
+  return useQuery({
+    queryKey: ['review-queue', 'stats', accountId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ReviewQueueStats>('/review-queue/stats', {
+        params: accountId ? { account_id: accountId } : {},
+      });
+      return data;
+    },
+    refetchInterval: 30000, // Refresh every 30s
+  });
+};
+
+// ============================================================================
+// Review Queue Mutations
+// ============================================================================
+
+export const useApproveReviewItem = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      userFeedback,
+      applyAction = false,
+    }: {
+      itemId: number;
+      userFeedback?: string;
+      applyAction?: boolean;
+    }) => {
+      const { data } = await apiClient.post<ActionResponse>(
+        `/review-queue/${itemId}/approve`,
+        {
+          user_feedback: userFeedback,
+          apply_action: applyAction,
+        }
+      );
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidate all review queue related queries
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+};
+
+export const useRejectReviewItem = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      correctedCategory,
+      userFeedback,
+      applyAction = false,
+    }: {
+      itemId: number;
+      correctedCategory?: string;
+      userFeedback?: string;
+      applyAction?: boolean;
+    }) => {
+      const { data } = await apiClient.post<ActionResponse>(
+        `/review-queue/${itemId}/reject`,
+        {
+          corrected_category: correctedCategory,
+          user_feedback: userFeedback,
+          apply_action: applyAction,
+        }
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+};
+
+export const useModifyReviewItem = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      correctedCategory,
+      userFeedback,
+      applyAction = true,
+    }: {
+      itemId: number;
+      correctedCategory: string;
+      userFeedback?: string;
+      applyAction?: boolean;
+    }) => {
+      const { data } = await apiClient.post<ActionResponse>(
+        `/review-queue/${itemId}/modify`,
+        {
+          corrected_category: correctedCategory,
+          user_feedback: userFeedback,
+          apply_action: applyAction,
+        }
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+};
+
+export const useDeleteReviewItem = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (itemId: number) => {
+      const { data } = await apiClient.delete(`/review-queue/${itemId}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+    },
   });
 };

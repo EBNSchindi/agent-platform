@@ -97,7 +97,7 @@ export function DecisionsList({ decisions }: DecisionsListProps) {
                   </span>
 
                   {/* Requires My Input */}
-                  {decision.requires_my_input && (
+                  {(decision as any).requires_my_input && (
                     <div className="flex items-center gap-1 text-orange-600">
                       <User className="w-4 h-4" />
                       <span className="text-xs font-medium">Requires your input</span>
