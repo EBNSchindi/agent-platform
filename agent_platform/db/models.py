@@ -215,6 +215,37 @@ class ProcessedEmail(Base):
     rule_layer_hint = Column(String(500), nullable=True)  # What rules detected
     history_layer_hint = Column(String(500), nullable=True)  # Historical context used
 
+    # Storage strategy (Datenhaltungs-Strategie)
+    storage_level = Column(String(20), nullable=False, default='full', index=True)
+    # Values: 'full' (body+attachments+extraction), 'summary' (summary only), 'minimal' (metadata only)
+
+    # Content storage (conditional based on storage_level)
+    summary = Column(Text, nullable=True)  # LLM-generated summary (2-3 sentences)
+    body_text = Column(Text, nullable=True)  # Full email body (text) - only for storage_level='full'
+    body_html = Column(Text, nullable=True)  # Full email body (HTML) - only for storage_level='full'
+
+    # Thread handling
+    thread_id = Column(String(200), nullable=True, index=True)  # Gmail thread ID
+    thread_summary = Column(Text, nullable=True)  # LLM-generated thread context summary
+    thread_position = Column(Integer, nullable=True)  # Position in thread (1=first, 2=second, etc.)
+    is_thread_start = Column(Boolean, default=False)  # True if this is the first email in thread
+
+    # Attachment metadata
+    has_attachments = Column(Boolean, default=False, index=True)  # True if email has attachments
+    attachment_count = Column(Integer, default=0)  # Number of attachments
+    attachments_metadata = Column(JSON, default={})  # List of attachment info: [{filename, size, mime_type, stored}]
+
+    # User correction tracking (for feedback loop)
+    user_corrected = Column(Boolean, default=False, index=True)  # True if user corrected classification
+    user_corrected_at = Column(DateTime, nullable=True)  # When user made correction
+    original_category = Column(String(100), nullable=True)  # Original category before user correction
+    original_confidence = Column(Float, nullable=True)  # Original confidence before user correction
+
+    # Gmail action tracking
+    gmail_label_applied = Column(String(200), nullable=True)  # Label that was applied (e.g., "🔴 Wichtig")
+    gmail_archived = Column(Boolean, default=False)  # True if email was archived
+    gmail_marked_read = Column(Boolean, default=False)  # True if email was marked as read
+
     # Response tracking
     draft_generated = Column(Boolean, default=False)
     draft_id = Column(String(200), nullable=True)  # Gmail draft ID
@@ -235,6 +266,44 @@ class ProcessedEmail(Base):
             # Prevent processing same email twice in same account
             # Index(['account_id', 'email_id'], unique=True),
         )
+
+
+class Attachment(Base):
+    """Email attachment tracking and storage"""
+    __tablename__ = "attachments"
+
+    id = Column(Integer, primary_key=True)
+    attachment_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+
+    # Email reference
+    email_id = Column(String(200), nullable=False, index=True)  # Gmail message ID or IMAP UID
+    processed_email_id = Column(Integer, ForeignKey("processed_emails.id"), nullable=True)
+    account_id = Column(String(100), nullable=False, index=True)  # gmail_1, gmail_2, gmail_3, ionos
+
+    # Attachment metadata
+    original_filename = Column(String(500), nullable=False)  # Original filename from email
+    file_size_bytes = Column(Integer, nullable=False)  # File size in bytes
+    mime_type = Column(String(200), nullable=False)  # MIME type (e.g., application/pdf, image/jpeg)
+
+    # Storage
+    stored_path = Column(String(1000), nullable=True)  # Local filesystem path (e.g., attachments/gmail_1/msg_123/file.pdf)
+    storage_status = Column(String(50), default='pending')  # pending, downloaded, failed, skipped_too_large
+    downloaded_at = Column(DateTime, nullable=True)  # When attachment was downloaded
+    file_hash = Column(String(64), nullable=True)  # SHA-256 hash for deduplication
+
+    # Text extraction (Phase 2+ feature - not implemented yet)
+    extracted_text = Column(Text, nullable=True)  # Extracted text from PDF/DOCX/images (OCR)
+    extraction_status = Column(String(50), nullable=True)  # pending, extracted, failed, not_supported
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    extra_metadata = Column(JSON, default={})  # Additional metadata (content analysis, virus scan results, etc.)
+
+    # Relationships
+    processed_email = relationship("ProcessedEmail", backref="attachments_list")
+
+    def __repr__(self):
+        return f"<Attachment(attachment_id='{self.attachment_id}', filename='{self.original_filename}')>"
 
 
 # ============================================================================

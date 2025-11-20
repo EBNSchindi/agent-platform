@@ -14,6 +14,7 @@ from agent_platform.api.routes import (
     decisions,
     questions,
     dashboard,
+    review_queue,
 )
 
 
@@ -64,6 +65,7 @@ app.include_router(tasks.router, prefix="/api/v1", tags=["tasks"])
 app.include_router(decisions.router, prefix="/api/v1", tags=["decisions"])
 app.include_router(questions.router, prefix="/api/v1", tags=["questions"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
+app.include_router(review_queue.router, prefix="/api/v1", tags=["review-queue"])
 
 
 if __name__ == "__main__":

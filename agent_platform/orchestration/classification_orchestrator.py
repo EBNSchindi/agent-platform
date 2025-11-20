@@ -94,6 +94,7 @@ class ClassificationOrchestrator:
         use_legacy: bool = False,
         ensemble_weights: Optional[ScoringWeights] = None,
         smart_llm_skip: bool = False,
+        gmail_service: Optional[Any] = None,
     ):
         """
         Initialize orchestrator.
@@ -103,6 +104,7 @@ class ClassificationOrchestrator:
             use_legacy: If True, use LegacyClassifier (early-stopping) instead of EnsembleClassifier
             ensemble_weights: Optional custom weights for ensemble scoring (ignored if use_legacy=True)
             smart_llm_skip: If True, enable Smart LLM skip optimization (~60-70% cost savings)
+            gmail_service: Optional GmailService instance for Gmail API operations (Phase 2)
         """
         self.db = db
         self._owns_db = False
@@ -128,6 +130,7 @@ class ClassificationOrchestrator:
         # Initialize other components
         self.extraction_agent = ExtractionAgent()
         self.queue_manager = ReviewQueueManager(db=self.db)
+        self.gmail_service = gmail_service  # Phase 2: Gmail automation
 
     def __del__(self):
         """Clean up database session if we created it."""
@@ -203,8 +206,31 @@ class ClassificationOrchestrator:
         snippet = email.get('snippet', body[:200] if body else '')
         received_at = email.get('received_at', datetime.utcnow())
 
+        # Phase 2.4: Detect attachments (from Gmail payload or email metadata)
+        has_attachments = email.get('has_attachments', False)
+        attachment_count = email.get('attachment_count', 0)
+        attachments_metadata = email.get('attachments_metadata', [])
+
+        # Infer from Gmail 'parts' if not explicitly provided
+        if not has_attachments and 'parts' in email:
+            parts = email.get('parts', [])
+            attachment_parts = [p for p in parts if p.get('filename')]
+            if attachment_parts:
+                has_attachments = True
+                attachment_count = len(attachment_parts)
+                attachments_metadata = [
+                    {
+                        'filename': p.get('filename'),
+                        'size': p.get('size', 0),
+                        'mime_type': p.get('mimeType', 'unknown')
+                    }
+                    for p in attachment_parts
+                ]
+
         print(f"\n📬 {subject[:60]}")
         print(f"   From: {sender[:50]}")
+        if has_attachments:
+            print(f"   📎 Attachments: {attachment_count}")
 
         # Create EmailToClassify
         email_to_classify = EmailToClassify(
@@ -214,6 +240,7 @@ class ClassificationOrchestrator:
             subject=subject,
             body=body,
             received_at=received_at,
+            has_attachments=has_attachments,  # Phase 2.4: Pass to classifier
         )
 
         # Step 1: Classify email
@@ -222,12 +249,22 @@ class ClassificationOrchestrator:
 
         # Extract attributes (supports both Ensemble and Legacy)
         category, importance, confidence = self._get_classification_attrs(classification)
+
+        # Phase 2.4: Priority boost for attachments (+10% importance if has attachments)
+        if has_attachments and importance < 1.0:
+            original_importance = importance
+            importance = min(1.0, importance + 0.10)  # Boost by 10%, cap at 1.0
+            print(f"   📎 Attachment boost: {original_importance:.0%} → {importance:.0%}")
         layer_used = getattr(classification, 'layer_used', 'ensemble')
 
         print(f"   📊 Category: {category}")
         print(f"   ⚖️  Importance: {importance:.0%}")
         print(f"   🎯 Confidence: {confidence:.0%}")
         print(f"   🏷️  Layer: {layer_used}")
+
+        # Determine storage level (Datenhaltungs-Strategie)
+        storage_level = self._determine_storage_level(category, importance, confidence)
+        print(f"   💾 Storage Level: {storage_level}")
 
         # Update stats
         stats.total_processed += 1
@@ -256,25 +293,40 @@ class ClassificationOrchestrator:
             )
 
         # Save ProcessedEmail record FIRST (needed for FK linkage)
-        processed_email_id = self._save_processed_email(email, classification, account_id)
-
-        # Step 2: Extract information AND persist to Memory-Objects
-        print(f"   🔎 Extracting information...")
-        extraction = await self.extraction_agent.extract_and_persist(
-            email_to_classify,
-            processed_email_id=processed_email_id
+        # Add attachment metadata to email dict for _save_processed_email
+        email_with_attachments = {
+            **email,
+            'has_attachments': has_attachments,
+            'attachment_count': attachment_count,
+            'attachments_metadata': attachments_metadata,
+        }
+        processed_email_id = self._save_processed_email(
+            email_with_attachments, classification, account_id, storage_level, body
         )
 
-        print(f"   📋 Extracted & Persisted: {extraction.task_count} tasks, "
-              f"{extraction.decision_count} decisions, "
-              f"{extraction.question_count} questions")
+        # Step 2: Extract information AND persist to Memory-Objects (conditional based on storage_level)
+        if storage_level in ['full', 'summary']:
+            print(f"   🔎 Extracting information...")
+            extraction = await self.extraction_agent.extract_and_persist(
+                email_to_classify,
+                processed_email_id=processed_email_id,
+                storage_level=storage_level
+            )
 
-        # Update extraction stats
-        if extraction.total_items > 0:
-            stats.emails_with_extractions += 1
-        stats.total_tasks_extracted += extraction.task_count
-        stats.total_decisions_extracted += extraction.decision_count
-        stats.total_questions_extracted += extraction.question_count
+            print(f"   📋 Extracted & Persisted: {extraction.task_count} tasks, "
+                  f"{extraction.decision_count} decisions, "
+                  f"{extraction.question_count} questions")
+
+            # Update extraction stats
+            if extraction.total_items > 0:
+                stats.emails_with_extractions += 1
+            stats.total_tasks_extracted += extraction.task_count
+            stats.total_decisions_extracted += extraction.decision_count
+            stats.total_questions_extracted += extraction.question_count
+        else:
+            # storage_level = 'minimal' → Skip extraction
+            print(f"   ⏭️  Skipping extraction (minimal storage)")
+            extraction = None
 
     # ========================================================================
     # CONFIDENCE-BASED ROUTING
@@ -288,15 +340,136 @@ class ClassificationOrchestrator:
         account_id: str,
         stats: EmailProcessingStats,
     ):
-        """Handle high-confidence classification (≥0.85)."""
+        """
+        Handle high-confidence classification (≥0.90).
+
+        Phase 2 Enhancement: Actually applies Gmail labels with emojis and logs events.
+
+        Args:
+            email: Email dictionary
+            classification: Classification result
+            category: Email category
+            account_id: Account ID (e.g., gmail_1)
+            stats: Processing statistics
+        """
         print(f"   ✅ HIGH CONFIDENCE → Auto-action")
 
-        # Apply label (placeholder - would integrate with email tools)
+        # Get emoji label for category
         label = self._get_label_for_category(category)
         print(f"   🏷️  Label: {label}")
 
-        # Would apply label via Gmail/IMAP tools here
-        # apply_label(account_id, email['id'], label)
+        # Phase 2: Apply label via Gmail API (if gmail_service available)
+        gmail_label_applied = None
+        if self.gmail_service:
+            try:
+                result = self.gmail_service.apply_label(email['id'], label)
+                if result.get('status') == 'success':
+                    gmail_label_applied = label
+                    print(f"   ✅ Label applied successfully")
+
+                    # Log GMAIL_LABEL_APPLIED event
+                    from agent_platform.events import log_event, EventType
+
+                    log_event(
+                        event_type=EventType.GMAIL_LABEL_APPLIED,
+                        account_id=account_id,
+                        email_id=email['id'],
+                        payload={
+                            'label_name': label,
+                            'category': category,
+                            'confidence': getattr(classification, 'final_confidence', getattr(classification, 'confidence', 0.0)),
+                        },
+                        extra_metadata={
+                            'gmail_result': result,
+                        }
+                    )
+                else:
+                    print(f"   ⚠️  Failed to apply label: {result.get('message')}")
+            except Exception as e:
+                print(f"   ❌ Error applying label: {e}")
+
+        # Phase 2.2: Auto-archive for newsletter/spam (Phase 2 Requirement)
+        gmail_archived = False
+        if self.gmail_service and category in ['newsletter', 'spam']:
+            try:
+                result = self.gmail_service.archive_email(email['id'])
+                if result.get('status') == 'success':
+                    gmail_archived = True
+                    print(f"   📥 Email archived automatically ({category})")
+
+                    # Log GMAIL_ARCHIVED event
+                    from agent_platform.events import log_event, EventType
+
+                    log_event(
+                        event_type=EventType.GMAIL_ARCHIVED,
+                        account_id=account_id,
+                        email_id=email['id'],
+                        payload={
+                            'category': category,
+                            'reason': f'Auto-archive for {category}',
+                            'confidence': getattr(classification, 'final_confidence', getattr(classification, 'confidence', 0.0)),
+                        },
+                        extra_metadata={
+                            'gmail_result': result,
+                        }
+                    )
+                else:
+                    print(f"   ⚠️  Failed to archive: {result.get('message')}")
+            except Exception as e:
+                print(f"   ❌ Error archiving email: {e}")
+
+        # Phase 2.3: Auto-mark-as-read for low-priority emails (Phase 2 Requirement)
+        gmail_marked_read = False
+        if self.gmail_service and category in ['newsletter', 'spam', 'system_notifications']:
+            try:
+                result = self.gmail_service.mark_as_read(email['id'])
+                if result.get('status') == 'success':
+                    gmail_marked_read = True
+                    print(f"   ✅ Email marked as read ({category})")
+
+                    # Log GMAIL_MARKED_READ event
+                    from agent_platform.events import log_event, EventType
+
+                    log_event(
+                        event_type=EventType.GMAIL_MARKED_READ,
+                        account_id=account_id,
+                        email_id=email['id'],
+                        payload={
+                            'category': category,
+                            'reason': f'Auto-mark-read for {category}',
+                            'confidence': getattr(classification, 'final_confidence', getattr(classification, 'confidence', 0.0)),
+                        },
+                        extra_metadata={
+                            'gmail_result': result,
+                        }
+                    )
+                else:
+                    print(f"   ⚠️  Failed to mark as read: {result.get('message')}")
+            except Exception as e:
+                print(f"   ❌ Error marking as read: {e}")
+
+        # Update ProcessedEmail record with Gmail action info
+        if gmail_label_applied or gmail_archived or gmail_marked_read:
+            try:
+                from agent_platform.db.database import get_db
+                from agent_platform.db.models import ProcessedEmail
+
+                with get_db() as db:
+                    processed_email = db.query(ProcessedEmail).filter(
+                        ProcessedEmail.email_id == email['id'],
+                        ProcessedEmail.account_id == account_id
+                    ).order_by(ProcessedEmail.created_at.desc()).first()
+
+                    if processed_email:
+                        if gmail_label_applied:
+                            processed_email.gmail_label_applied = gmail_label_applied
+                        if gmail_archived:
+                            processed_email.gmail_archived = True
+                        if gmail_marked_read:
+                            processed_email.gmail_marked_read = True
+                        db.commit()
+            except Exception as e:
+                print(f"   ⚠️  Failed to update ProcessedEmail with Gmail actions: {e}")
 
         stats.auto_labeled += 1
 
@@ -350,9 +523,18 @@ class ClassificationOrchestrator:
         email: Dict[str, Any],
         classification,
         account_id: str,
+        storage_level: str,
+        body: str,
     ) -> int:
         """
-        Save ProcessedEmail record to database.
+        Save ProcessedEmail record to database with storage_level logic.
+
+        Args:
+            email: Email dictionary
+            classification: Classification result
+            account_id: Account ID string
+            storage_level: Storage level ('full', 'summary', 'minimal')
+            body: Email body text
 
         Returns:
             processed_email.id (needed for FK linkage with memory objects)
@@ -375,6 +557,15 @@ class ClassificationOrchestrator:
         else:
             llm_provider = f"{layer_used}_only"
 
+        # Conditional body storage based on storage_level
+        body_text = body if storage_level == 'full' else None
+        body_html = email.get('body_html') if storage_level == 'full' else None
+
+        # Phase 2.4: Extract attachment metadata from email
+        has_attachments = email.get('has_attachments', False)
+        attachment_count = email.get('attachment_count', 0)
+        attachments_metadata = email.get('attachments_metadata', {})
+
         processed_email = ProcessedEmail(
             account_id=db_account_id,
             email_id=email.get('id'),
@@ -388,6 +579,18 @@ class ClassificationOrchestrator:
             llm_provider_used=llm_provider,
             rule_layer_hint=getattr(classification, 'reasoning', None) if layer_used == "rules" else None,
             history_layer_hint=getattr(classification, 'reasoning', None) if layer_used == "history" else None,
+
+            # Phase 1: Storage level and conditional body storage
+            storage_level=storage_level,
+            body_text=body_text,
+            body_html=body_html,
+            summary=None,  # Will be set by extraction agent
+
+            # Phase 2.4: Attachment metadata
+            has_attachments=has_attachments,
+            attachment_count=attachment_count,
+            attachments_metadata=attachments_metadata,
+
             extra_metadata={
                 'layer_used': layer_used,
                 'processing_time_ms': getattr(classification, 'processing_time_ms', 0),
@@ -406,17 +609,59 @@ class ClassificationOrchestrator:
     # HELPER METHODS
     # ========================================================================
 
+    def _determine_storage_level(self, category: str, importance: float, confidence: float) -> str:
+        """
+        Determine storage level based on classification (Datenhaltungs-Strategie).
+
+        Rules:
+        - 'full': wichtig, action_required → Store everything (body + attachments + extractions)
+        - 'summary': nice_to_know → Store summary only (no body, metadata-only attachments)
+        - 'minimal': newsletter, spam, unwichtig, system_notifications → Store only metadata
+
+        Args:
+            category: Email category from classification
+            importance: Importance score (0.0-1.0)
+            confidence: Classification confidence (0.0-1.0)
+
+        Returns:
+            'full', 'summary', or 'minimal'
+        """
+        if category in ['wichtig', 'action_required']:
+            return 'full'
+        elif category == 'nice_to_know':
+            return 'summary'
+        elif category in ['newsletter', 'spam', 'system_notifications']:
+            return 'minimal'
+        else:
+            # Default fallback based on importance (for unknown categories)
+            if importance >= 0.7:
+                return 'full'
+            elif importance >= 0.4:
+                return 'summary'
+            else:
+                return 'minimal'
+
     def _get_label_for_category(self, category: str) -> str:
-        """Map category to Gmail label."""
+        """
+        Map category to Gmail label with emoji.
+
+        Phase 2 Enhancement: Uses emoji labels for better visual recognition.
+
+        Args:
+            category: Email category from classification
+
+        Returns:
+            Gmail label name with emoji prefix
+        """
         label_map = {
-            "wichtig": "Important",
-            "action_required": "Action Required",
-            "nice_to_know": "Low Priority",
-            "newsletter": "Newsletters",
-            "spam": "Spam",
-            "system_notifications": "System",
+            "wichtig": "🔴 Wichtig",
+            "action_required": "⚡ Action Required",
+            "nice_to_know": "📘 Nice to Know",
+            "newsletter": "📰 Newsletter",
+            "spam": "🗑️ Spam",
+            "system_notifications": "🔔 System",
         }
-        return label_map.get(category, "Uncategorized")
+        return label_map.get(category, "❓ Uncategorized")
 
     def _print_stats(self, stats: EmailProcessingStats):
         """Print processing statistics."""
