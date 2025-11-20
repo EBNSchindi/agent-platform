@@ -328,3 +328,270 @@ class ClassificationThresholds(BaseModel):
         le=0.3,
         description="Confidence boost when using sender-specific data vs domain"
     )
+
+
+# ============================================================================
+# ENSEMBLE SYSTEM MODELS (Phase 2)
+# ============================================================================
+
+class LayerScore(BaseModel):
+    """
+    Classification result from a single layer (Rule/History/LLM).
+
+    Used in ensemble system where all layers run and results are combined.
+    """
+    layer_name: Literal["rules", "history", "llm"] = Field(
+        ...,
+        description="Which layer produced this score"
+    )
+
+    category: ImportanceCategory = Field(
+        ...,
+        description="Classified category"
+    )
+
+    importance: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Importance score (0.0=low, 1.0=high)"
+    )
+
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Confidence in this classification"
+    )
+
+    reasoning: str = Field(
+        ...,
+        description="Why this layer classified this way"
+    )
+
+    processing_time_ms: float = Field(
+        ...,
+        ge=0.0,
+        description="Processing time for this layer"
+    )
+
+    # Optional: Provider info for LLM layer
+    llm_provider: Optional[Literal["ollama", "openai"]] = Field(
+        None,
+        description="LLM provider used (if layer=llm)"
+    )
+
+
+class ScoringWeights(BaseModel):
+    """
+    Weights for combining layer scores in ensemble system.
+
+    Weights must sum to 1.0. User can adjust via HITL.
+    """
+    rule_weight: float = Field(
+        0.20,
+        ge=0.0,
+        le=1.0,
+        description="Weight for rule layer (default: 20%)"
+    )
+
+    history_weight: float = Field(
+        0.30,
+        ge=0.0,
+        le=1.0,
+        description="Weight for history layer (default: 30%)"
+    )
+
+    llm_weight: float = Field(
+        0.50,
+        ge=0.0,
+        le=1.0,
+        description="Weight for LLM layer (default: 50%)"
+    )
+
+    # Adaptive mode settings
+    adaptive_mode: bool = Field(
+        False,
+        description="If True, weights adapt based on layer performance"
+    )
+
+    # Optional: Different weights for bootstrap phase
+    bootstrap_rule_weight: Optional[float] = Field(
+        0.30,
+        ge=0.0,
+        le=1.0,
+        description="Rule weight during bootstrap (first 2 weeks)"
+    )
+
+    bootstrap_history_weight: Optional[float] = Field(
+        0.10,
+        ge=0.0,
+        le=1.0,
+        description="History weight during bootstrap (first 2 weeks)"
+    )
+
+    bootstrap_llm_weight: Optional[float] = Field(
+        0.60,
+        ge=0.0,
+        le=1.0,
+        description="LLM weight during bootstrap (first 2 weeks)"
+    )
+
+    def validate_weights(self) -> bool:
+        """Check if weights sum to 1.0 (with small tolerance)."""
+        total = self.rule_weight + self.history_weight + self.llm_weight
+        return abs(total - 1.0) < 0.01
+
+    def get_weights(self, is_bootstrap: bool = False) -> tuple[float, float, float]:
+        """Get weights as tuple (rule, history, llm)."""
+        if is_bootstrap and self.bootstrap_rule_weight is not None:
+            return (
+                self.bootstrap_rule_weight,
+                self.bootstrap_history_weight,
+                self.bootstrap_llm_weight
+            )
+        return (self.rule_weight, self.history_weight, self.llm_weight)
+
+
+class DisagreementInfo(BaseModel):
+    """
+    Information about layer disagreement.
+
+    Logged when layers produce different categories.
+    """
+    email_id: str
+    account_id: str
+
+    rule_category: ImportanceCategory
+    history_category: ImportanceCategory
+    llm_category: ImportanceCategory
+
+    final_category: ImportanceCategory
+
+    # Agreement metrics
+    layers_agree: bool = Field(
+        ...,
+        description="True if all 3 layers agree on category"
+    )
+
+    partial_agreement: bool = Field(
+        ...,
+        description="True if at least 2 layers agree"
+    )
+
+    agreement_count: int = Field(
+        ...,
+        ge=0,
+        le=3,
+        description="Number of layers that agree with final decision"
+    )
+
+    # Confidence spread
+    confidence_variance: float = Field(
+        ...,
+        ge=0.0,
+        description="Variance in confidence scores (indicates uncertainty)"
+    )
+
+    needs_user_review: bool = Field(
+        False,
+        description="True if disagreement significant enough for HITL review"
+    )
+
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
+
+class EnsembleClassification(BaseModel):
+    """
+    Combined classification result from ensemble of all 3 layers.
+
+    Contains individual layer scores + weighted combination + agreement metrics.
+    """
+    # Individual layer scores
+    rule_score: LayerScore = Field(
+        ...,
+        description="Score from rule layer"
+    )
+
+    history_score: LayerScore = Field(
+        ...,
+        description="Score from history layer"
+    )
+
+    llm_score: Optional[LayerScore] = Field(
+        None,
+        description="Score from LLM layer (optional if skipped for performance)"
+    )
+
+    # Final combined result
+    final_category: ImportanceCategory = Field(
+        ...,
+        description="Final category after ensemble combination"
+    )
+
+    final_importance: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Final importance score (weighted average)"
+    )
+
+    final_confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Final confidence (weighted average + agreement boost/penalty)"
+    )
+
+    # Weights used
+    rule_weight: float = Field(..., ge=0.0, le=1.0)
+    history_weight: float = Field(..., ge=0.0, le=1.0)
+    llm_weight: float = Field(..., ge=0.0, le=1.0)
+
+    # Agreement metrics
+    layers_agree: bool = Field(
+        ...,
+        description="True if all layers produced same category"
+    )
+
+    agreement_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="0.0=complete disagreement, 1.0=perfect agreement"
+    )
+
+    confidence_boost: float = Field(
+        0.0,
+        description="Confidence boost/penalty applied due to agreement (+0.2 to -0.2)"
+    )
+
+    # Reasoning
+    combined_reasoning: str = Field(
+        ...,
+        description="Combined explanation from all layers"
+    )
+
+    # Metadata
+    llm_was_used: bool = Field(
+        True,
+        description="True if LLM layer was called (False if skipped for performance)"
+    )
+
+    total_processing_time_ms: float = Field(
+        ...,
+        ge=0.0,
+        description="Total processing time across all layers"
+    )
+
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
+    # Optional: Disagreement info (if significant)
+    disagreement: Optional[DisagreementInfo] = Field(
+        None,
+        description="Disagreement details if layers didn't agree"
+    )
