@@ -95,10 +95,9 @@ class WebhookService:
 
             # Log event
             log_event(
-                event_type=EventType.CUSTOM,
+                event_type=EventType.WEBHOOK_SUBSCRIPTION_CREATED,
                 account_id=config.account_id,
                 payload={
-                    'action': 'webhook_subscription_created',
                     'topic': config.topic_name,
                     'expires_at': expires_at.isoformat(),
                     'history_id': history_id,
@@ -115,11 +114,11 @@ class WebhookService:
             logger.error(f"Failed to create webhook subscription: {e}", exc_info=True)
 
             log_event(
-                event_type=EventType.CUSTOM,
+                event_type=EventType.WEBHOOK_SUBSCRIPTION_CREATED,
                 account_id=config.account_id,
                 payload={
-                    'action': 'webhook_subscription_failed',
                     'error': str(e),
+                    'failed': True,
                 },
             )
 
@@ -150,7 +149,19 @@ class WebhookService:
             topic_name=subscription.topic_name,
         )
 
-        return await self.create_subscription(gmail_service, config)
+        new_subscription = await self.create_subscription(gmail_service, config)
+
+        # Log renewal event
+        log_event(
+            event_type=EventType.WEBHOOK_SUBSCRIPTION_RENEWED,
+            account_id=account_id,
+            payload={
+                'topic': new_subscription.topic_name,
+                'expires_at': new_subscription.expires_at.isoformat(),
+            },
+        )
+
+        return new_subscription
 
     async def stop_subscription(
         self,
@@ -182,9 +193,9 @@ class WebhookService:
             del self._active_subscriptions[account_id]
 
             log_event(
-                event_type=EventType.CUSTOM,
+                event_type=EventType.WEBHOOK_SUBSCRIPTION_STOPPED,
                 account_id=account_id,
-                payload={'action': 'webhook_subscription_stopped'},
+                payload={},
             )
 
             logger.info(f"Stopped webhook subscription for {account_id}")
@@ -259,10 +270,9 @@ class WebhookService:
                 )
 
                 log_event(
-                    event_type=EventType.CUSTOM,
+                    event_type=EventType.WEBHOOK_NOTIFICATION_RECEIVED,
                     account_id=account_id,
                     payload={
-                        'action': 'webhook_emails_processed',
                         'count': len(new_emails),
                         'stats': stats,
                     },
@@ -282,11 +292,11 @@ class WebhookService:
             event.error_message = str(e)
 
             log_event(
-                event_type=EventType.CUSTOM,
+                event_type=EventType.WEBHOOK_NOTIFICATION_RECEIVED,
                 account_id=account_id,
                 payload={
-                    'action': 'webhook_processing_failed',
                     'error': str(e),
+                    'failed': True,
                 },
             )
 

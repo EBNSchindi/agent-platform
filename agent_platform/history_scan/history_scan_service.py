@@ -86,7 +86,7 @@ class HistoryScanService:
 
         # Log scan start event
         log_event(
-            event_type=EventType.CUSTOM,
+            event_type=EventType.HISTORY_SCAN_STARTED,
             account_id=config.account_id,
             payload={
                 'scan_id': progress.scan_id,
@@ -119,9 +119,9 @@ class HistoryScanService:
         progress.last_updated_at = datetime.now()
 
         log_event(
-            event_type=EventType.CUSTOM,
+            event_type=EventType.HISTORY_SCAN_PAUSED,
             account_id=progress.account_id,
-            payload={'scan_id': scan_id, 'action': 'paused'},
+            payload={'scan_id': scan_id},
         )
 
         logger.info(f"Scan {scan_id} paused at {progress.processed}/{progress.total_found} emails")
@@ -146,9 +146,9 @@ class HistoryScanService:
         progress.last_updated_at = datetime.now()
 
         log_event(
-            event_type=EventType.CUSTOM,
+            event_type=EventType.HISTORY_SCAN_RESUMED,
             account_id=progress.account_id,
-            payload={'scan_id': scan_id, 'action': 'resumed'},
+            payload={'scan_id': scan_id},
         )
 
         # Reconstruct config from progress (simplified - in production, store full config)
@@ -180,9 +180,9 @@ class HistoryScanService:
         progress.last_updated_at = datetime.now()
 
         log_event(
-            event_type=EventType.CUSTOM,
+            event_type=EventType.HISTORY_SCAN_CANCELLED,
             account_id=progress.account_id,
-            payload={'scan_id': scan_id, 'action': 'cancelled'},
+            payload={'scan_id': scan_id},
         )
 
         logger.info(f"Scan {scan_id} cancelled")
@@ -235,11 +235,10 @@ class HistoryScanService:
 
                 # Log completion event
                 log_event(
-                    event_type=EventType.CUSTOM,
+                    event_type=EventType.HISTORY_SCAN_COMPLETED,
                     account_id=config.account_id,
                     payload={
                         'scan_id': progress.scan_id,
-                        'action': 'completed',
                         'stats': {
                             'processed': progress.processed,
                             'skipped': progress.skipped,
@@ -282,11 +281,10 @@ class HistoryScanService:
             progress.last_updated_at = datetime.now()
 
             log_event(
-                event_type=EventType.CUSTOM,
+                event_type=EventType.HISTORY_SCAN_ERROR,
                 account_id=config.account_id,
                 payload={
                     'scan_id': progress.scan_id,
-                    'action': 'failed',
                     'error': str(e),
                 },
             )
