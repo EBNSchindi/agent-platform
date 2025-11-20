@@ -427,3 +427,316 @@ class SubjectPattern(Base):
 
     def __repr__(self):
         return f"<SubjectPattern(pattern='{self.pattern}', category='{self.preferred_category}')>"
+
+
+# ============================================================================
+# MEMORY-OBJECTS (Digital Twin - Derived from Events)
+# ============================================================================
+
+class Task(Base):
+    """
+    Task Memory-Object (derived from TASK_EXTRACTED events)
+
+    Represents actionable items extracted from emails that require attention.
+    These are persistent memory objects that can be tracked, updated, and completed.
+    """
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+
+    # Email reference
+    account_id = Column(String(100), nullable=False, index=True)
+    email_id = Column(String(200), nullable=False, index=True)
+    processed_email_id = Column(Integer, ForeignKey("processed_emails.id"), nullable=True)
+
+    # Email context
+    email_subject = Column(Text, nullable=True)
+    email_sender = Column(String(200), nullable=True)
+    email_received_at = Column(DateTime, nullable=True)
+
+    # Task details (from ExtractedTask model)
+    description = Column(Text, nullable=False)  # What needs to be done
+    context = Column(Text, nullable=True)  # Additional context from email
+    deadline = Column(DateTime, nullable=True, index=True)  # When it needs to be done
+    priority = Column(String(20), nullable=False, default="medium")  # low, medium, high, urgent
+
+    # Ownership
+    assignee = Column(String(200), nullable=True)  # Who should do it (if specified)
+    requires_action_from_me = Column(Boolean, default=True)  # Does the user need to act?
+
+    # Status tracking
+    status = Column(String(50), default="pending", index=True)
+    # Values: 'pending', 'in_progress', 'completed', 'cancelled', 'waiting'
+
+    # Completion tracking
+    completed_at = Column(DateTime, nullable=True)
+    completion_notes = Column(Text, nullable=True)
+
+    # Event references (Event-First principle)
+    extraction_event_id = Column(String(36), ForeignKey("events.event_id"), nullable=True)
+    # Additional events: STATUS_CHANGED, TASK_COMPLETED, etc.
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    extra_metadata = Column(JSON, default={})
+
+    # Relationships
+    processed_email = relationship("ProcessedEmail", backref="tasks")
+    extraction_event = relationship("Event", foreign_keys=[extraction_event_id])
+
+    def __repr__(self):
+        return f"<Task(task_id='{self.task_id}', description='{self.description[:30]}...', status='{self.status}')>"
+
+    def to_dict(self):
+        """Convert task to dictionary for JSON serialization"""
+        return {
+            'task_id': self.task_id,
+            'description': self.description,
+            'context': self.context,
+            'deadline': self.deadline.isoformat() if self.deadline else None,
+            'priority': self.priority,
+            'status': self.status,
+            'requires_action_from_me': self.requires_action_from_me,
+            'assignee': self.assignee,
+            'email_subject': self.email_subject,
+            'email_sender': self.email_sender,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+        }
+
+
+class Decision(Base):
+    """
+    Decision Memory-Object (derived from DECISION_EXTRACTED events)
+
+    Represents decisions that need to be made, extracted from emails.
+    Tracks options, recommendations, and user choices.
+    """
+    __tablename__ = "decisions"
+
+    id = Column(Integer, primary_key=True)
+    decision_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+
+    # Email reference
+    account_id = Column(String(100), nullable=False, index=True)
+    email_id = Column(String(200), nullable=False, index=True)
+    processed_email_id = Column(Integer, ForeignKey("processed_emails.id"), nullable=True)
+
+    # Email context
+    email_subject = Column(Text, nullable=True)
+    email_sender = Column(String(200), nullable=True)
+    email_received_at = Column(DateTime, nullable=True)
+
+    # Decision details (from ExtractedDecision model)
+    question = Column(Text, nullable=False)  # The decision to be made
+    context = Column(Text, nullable=True)  # Additional context
+    options = Column(JSON, nullable=False, default=[])  # List of available options
+    recommendation = Column(Text, nullable=True)  # System/sender recommendation
+
+    # Priority
+    urgency = Column(String(20), nullable=False, default="medium")  # low, medium, high, urgent
+    requires_my_input = Column(Boolean, default=True)  # Does the user need to decide?
+
+    # Decision tracking
+    status = Column(String(50), default="pending", index=True)
+    # Values: 'pending', 'decided', 'delegated', 'cancelled'
+
+    # User decision
+    chosen_option = Column(String(500), nullable=True)
+    decision_notes = Column(Text, nullable=True)
+    decided_at = Column(DateTime, nullable=True)
+
+    # Event references
+    extraction_event_id = Column(String(36), ForeignKey("events.event_id"), nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    extra_metadata = Column(JSON, default={})
+
+    # Relationships
+    processed_email = relationship("ProcessedEmail", backref="decisions")
+    extraction_event = relationship("Event", foreign_keys=[extraction_event_id])
+
+    def __repr__(self):
+        return f"<Decision(decision_id='{self.decision_id}', question='{self.question[:30]}...', status='{self.status}')>"
+
+    def to_dict(self):
+        """Convert decision to dictionary for JSON serialization"""
+        return {
+            'decision_id': self.decision_id,
+            'question': self.question,
+            'context': self.context,
+            'options': self.options,
+            'recommendation': self.recommendation,
+            'urgency': self.urgency,
+            'status': self.status,
+            'requires_my_input': self.requires_my_input,
+            'chosen_option': self.chosen_option,
+            'decision_notes': self.decision_notes,
+            'decided_at': self.decided_at.isoformat() if self.decided_at else None,
+            'email_subject': self.email_subject,
+            'email_sender': self.email_sender,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+        }
+
+
+class Question(Base):
+    """
+    Question Memory-Object (derived from QUESTION_EXTRACTED events)
+
+    Represents questions extracted from emails that need answers.
+    Tracks response requirements and urgency.
+    """
+    __tablename__ = "questions"
+
+    id = Column(Integer, primary_key=True)
+    question_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+
+    # Email reference
+    account_id = Column(String(100), nullable=False, index=True)
+    email_id = Column(String(200), nullable=False, index=True)
+    processed_email_id = Column(Integer, ForeignKey("processed_emails.id"), nullable=True)
+
+    # Email context
+    email_subject = Column(Text, nullable=True)
+    email_sender = Column(String(200), nullable=True)
+    email_received_at = Column(DateTime, nullable=True)
+
+    # Question details (from ExtractedQuestion model)
+    question = Column(Text, nullable=False)  # The question being asked
+    context = Column(Text, nullable=True)  # Additional context
+    question_type = Column(String(50), nullable=False, default="information")
+    # Types: 'yes_no', 'information', 'clarification', 'decision', 'opinion'
+
+    # Response requirements
+    requires_response = Column(Boolean, default=True)
+    urgency = Column(String(20), nullable=False, default="medium")  # low, medium, high, urgent
+
+    # Response tracking
+    status = Column(String(50), default="pending", index=True)
+    # Values: 'pending', 'answered', 'delegated', 'not_applicable'
+
+    # User response
+    answer = Column(Text, nullable=True)
+    answered_at = Column(DateTime, nullable=True)
+
+    # Event references
+    extraction_event_id = Column(String(36), ForeignKey("events.event_id"), nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    extra_metadata = Column(JSON, default={})
+
+    # Relationships
+    processed_email = relationship("ProcessedEmail", backref="questions")
+    extraction_event = relationship("Event", foreign_keys=[extraction_event_id])
+
+    def __repr__(self):
+        return f"<Question(question_id='{self.question_id}', question='{self.question[:30]}...', status='{self.status}')>"
+
+    def to_dict(self):
+        """Convert question to dictionary for JSON serialization"""
+        return {
+            'question_id': self.question_id,
+            'question': self.question,
+            'context': self.context,
+            'question_type': self.question_type,
+            'requires_response': self.requires_response,
+            'urgency': self.urgency,
+            'status': self.status,
+            'answer': self.answer,
+            'answered_at': self.answered_at.isoformat() if self.answered_at else None,
+            'email_subject': self.email_subject,
+            'email_sender': self.email_sender,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+        }
+
+
+class JournalEntry(Base):
+    """
+    Journal Entry Memory-Object
+
+    Daily summary journal generated from events and memory-objects.
+    Provides human-readable overview of the day's activities.
+    """
+    __tablename__ = "journal_entries"
+
+    id = Column(Integer, primary_key=True)
+    journal_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+
+    # Account and time period
+    account_id = Column(String(100), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True)  # Date this journal covers
+    period_type = Column(String(20), default="daily")  # daily, weekly, monthly
+
+    # Journal content
+    title = Column(String(500), nullable=False)
+    content_markdown = Column(Text, nullable=False)  # Full journal in Markdown format
+    summary = Column(Text, nullable=True)  # Brief summary
+
+    # Statistics
+    total_emails_processed = Column(Integer, default=0)
+    total_tasks_created = Column(Integer, default=0)
+    total_decisions_made = Column(Integer, default=0)
+    total_questions_answered = Column(Integer, default=0)
+
+    # Categories breakdown
+    emails_by_category = Column(JSON, default={})  # {"wichtig": 5, "spam": 2, ...}
+
+    # Key highlights
+    top_senders = Column(JSON, default=[])  # List of top senders with counts
+    important_items = Column(JSON, default=[])  # List of important tasks/decisions/questions
+
+    # Generation metadata
+    generated_at = Column(DateTime, default=datetime.utcnow)
+    generation_event_id = Column(String(36), ForeignKey("events.event_id"), nullable=True)
+
+    # Review status
+    status = Column(String(50), default="generated", index=True)
+    # Values: 'generated', 'reviewed', 'archived'
+
+    reviewed_at = Column(DateTime, nullable=True)
+    user_notes = Column(Text, nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    extra_metadata = Column(JSON, default={})
+
+    # Relationships
+    generation_event = relationship("Event", foreign_keys=[generation_event_id])
+
+    def __repr__(self):
+        return f"<JournalEntry(journal_id='{self.journal_id}', date='{self.date}', title='{self.title[:30]}...')>"
+
+    def to_dict(self):
+        """Convert journal entry to dictionary for JSON serialization"""
+        return {
+            'journal_id': self.journal_id,
+            'account_id': self.account_id,
+            'date': self.date.isoformat(),
+            'period_type': self.period_type,
+            'title': self.title,
+            'content_markdown': self.content_markdown,
+            'summary': self.summary,
+            'total_emails_processed': self.total_emails_processed,
+            'total_tasks_created': self.total_tasks_created,
+            'total_decisions_made': self.total_decisions_made,
+            'total_questions_answered': self.total_questions_answered,
+            'emails_by_category': self.emails_by_category,
+            'top_senders': self.top_senders,
+            'important_items': self.important_items,
+            'status': self.status,
+            'generated_at': self.generated_at.isoformat(),
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
+            'user_notes': self.user_notes,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+        }

@@ -88,6 +88,9 @@ class EventType(str, Enum):
     TASK_UPDATED = "TASK_UPDATED"
     """Task was updated (status change, etc.)"""
 
+    TASK_STATUS_CHANGED = "TASK_STATUS_CHANGED"
+    """Task status was changed (pending → in_progress → completed, etc.)"""
+
     TASK_COMPLETED = "TASK_COMPLETED"
     """Task was marked as completed"""
 
@@ -162,6 +165,7 @@ USER_INTERACTION_EVENTS = {
 MEMORY_EVENTS = {
     EventType.TASK_CREATED,
     EventType.TASK_UPDATED,
+    EventType.TASK_STATUS_CHANGED,
     EventType.TASK_COMPLETED,
     EventType.DECISION_CREATED,
     EventType.DECISION_MADE,
