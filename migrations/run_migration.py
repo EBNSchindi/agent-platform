@@ -35,19 +35,40 @@ def run_migration(sql_file: str):
 
 
 if __name__ == "__main__":
-    # Run Event table migration
-    migration_dir = os.path.dirname(__file__)
-    migration_file = os.path.join(migration_dir, "001_create_events_table.sql")
+    import sys
+    import glob
+
+    migration_dir = os.path.dirname(__file__) or '.'
 
     print("=" * 80)
-    print("Event-Log System Migration")
+    print("Database Migration Runner")
     print("=" * 80)
     print(f"Database: {DB_PATH}")
     print()
 
-    run_migration(migration_file)
+    # If specific migration file provided, run only that one
+    if len(sys.argv) > 1:
+        migration_file = sys.argv[1]
+        if not os.path.isabs(migration_file):
+            migration_file = os.path.join(migration_dir, migration_file)
 
-    print()
+        if not os.path.exists(migration_file):
+            print(f"❌ Migration file not found: {migration_file}")
+            sys.exit(1)
+
+        run_migration(migration_file)
+    else:
+        # Run all migrations in order
+        migration_files = sorted(glob.glob(os.path.join(migration_dir, "*.sql")))
+
+        if not migration_files:
+            print("⚠️  No migration files found")
+            sys.exit(0)
+
+        for migration_file in migration_files:
+            run_migration(migration_file)
+            print()
+
     print("=" * 80)
     print("✅ All migrations completed successfully!")
     print("=" * 80)
