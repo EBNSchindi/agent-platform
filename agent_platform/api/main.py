@@ -17,6 +17,8 @@ from agent_platform.api.routes import (
     review_queue,
     attachments,
     threads,
+    history_scan,
+    webhooks,
 )
 
 
@@ -70,6 +72,8 @@ app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(review_queue.router, prefix="/api/v1", tags=["review-queue"])
 app.include_router(attachments.router)  # Already has /api/v1 prefix
 app.include_router(threads.router)  # Already has /api/v1 prefix
+app.include_router(history_scan.router)  # Already has /api/v1 prefix
+app.include_router(webhooks.router)  # Already has /api/v1 prefix
 
 
 if __name__ == "__main__":

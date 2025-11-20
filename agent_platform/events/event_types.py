@@ -75,6 +75,38 @@ class EventType(str, Enum):
     ATTACHMENT_DOWNLOAD_FAILED = "ATTACHMENT_DOWNLOAD_FAILED"
     """Attachment download failed"""
 
+    # History Scan Events (Phase 5)
+    HISTORY_SCAN_STARTED = "HISTORY_SCAN_STARTED"
+    """History scan was started"""
+
+    HISTORY_SCAN_PAUSED = "HISTORY_SCAN_PAUSED"
+    """History scan was paused"""
+
+    HISTORY_SCAN_RESUMED = "HISTORY_SCAN_RESUMED"
+    """History scan was resumed"""
+
+    HISTORY_SCAN_COMPLETED = "HISTORY_SCAN_COMPLETED"
+    """History scan completed"""
+
+    HISTORY_SCAN_CANCELLED = "HISTORY_SCAN_CANCELLED"
+    """History scan was cancelled"""
+
+    HISTORY_SCAN_ERROR = "HISTORY_SCAN_ERROR"
+    """History scan encountered an error"""
+
+    # Webhook Events (Phase 5)
+    WEBHOOK_SUBSCRIPTION_CREATED = "WEBHOOK_SUBSCRIPTION_CREATED"
+    """Webhook subscription was created"""
+
+    WEBHOOK_SUBSCRIPTION_RENEWED = "WEBHOOK_SUBSCRIPTION_RENEWED"
+    """Webhook subscription was renewed"""
+
+    WEBHOOK_SUBSCRIPTION_STOPPED = "WEBHOOK_SUBSCRIPTION_STOPPED"
+    """Webhook subscription was stopped"""
+
+    WEBHOOK_NOTIFICATION_RECEIVED = "WEBHOOK_NOTIFICATION_RECEIVED"
+    """Webhook notification was received"""
+
     # ========================================================================
     # USER INTERACTION EVENTS (Phase 1 - HITL)
     # ========================================================================

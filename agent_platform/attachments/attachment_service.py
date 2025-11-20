@@ -62,7 +62,7 @@ class AttachmentService:
         """Compute SHA-256 hash of file data"""
         return hashlib.sha256(file_data).hexdigest()
 
-    def _find_duplicate(self, file_hash: str, account_id: str) -> Optional[Attachment]:
+    def _find_duplicate(self, file_hash: str, account_id: str) -> Optional[tuple]:
         """
         Find existing attachment with same hash in same account.
 
@@ -71,17 +71,22 @@ class AttachmentService:
             account_id: Account ID
 
         Returns:
-            Existing Attachment record if found, None otherwise
+            Tuple of (attachment_id, stored_path) if found, None otherwise
         """
         if not self.enable_deduplication:
             return None
 
         with get_db() as db:
-            return db.query(Attachment).filter(
+            result = db.query(Attachment).filter(
                 Attachment.file_hash == file_hash,
                 Attachment.account_id == account_id,
                 Attachment.storage_status == 'downloaded'
             ).first()
+
+            if result:
+                # Extract values before session closes
+                return (result.attachment_id, result.stored_path)
+            return None
 
     def _get_storage_path(
         self,
@@ -107,6 +112,10 @@ class AttachmentService:
         # Sanitize filename (remove dangerous characters)
         safe_filename = "".join(c for c in filename if c.isalnum() or c in "._- ")
         safe_filename = safe_filename.strip()
+
+        # Remove path traversal patterns (consecutive dots)
+        while ".." in safe_filename:
+            safe_filename = safe_filename.replace("..", ".")
 
         # Create subdirectory structure
         email_dir = self.storage_dir / account_id / email_id
@@ -199,9 +208,10 @@ class AttachmentService:
             # Check for duplicates
             duplicate = self._find_duplicate(file_hash, account_id)
             if duplicate:
+                duplicate_id, duplicate_path = duplicate
                 logger.info(
                     f"Attachment deduplicated: {attachment_info.filename} "
-                    f"(hash={file_hash[:8]}..., existing={duplicate.attachment_id})"
+                    f"(hash={file_hash[:8]}..., existing={duplicate_id})"
                 )
 
                 # Create new record pointing to existing file
@@ -214,7 +224,7 @@ class AttachmentService:
                         original_filename=attachment_info.filename,
                         file_size_bytes=attachment_info.size_bytes,
                         mime_type=attachment_info.mime_type,
-                        stored_path=duplicate.stored_path,  # Reuse existing path
+                        stored_path=duplicate_path,  # Reuse existing path
                         storage_status='downloaded',
                         downloaded_at=datetime.utcnow(),
                         file_hash=file_hash,
@@ -228,14 +238,14 @@ class AttachmentService:
                     payload={
                         'filename': attachment_info.filename,
                         'file_hash': file_hash,
-                        'existing_attachment_id': duplicate.attachment_id,
+                        'existing_attachment_id': duplicate_id,
                     }
                 )
 
                 return AttachmentDownloadResult(
                     attachment_id=attachment_db_id,
                     success=True,
-                    stored_path=duplicate.stored_path,
+                    stored_path=duplicate_path,
                     file_hash=file_hash,
                     downloaded_at=datetime.utcnow(),
                     deduplicated=True,
