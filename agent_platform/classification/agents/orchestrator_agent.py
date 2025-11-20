@@ -38,12 +38,12 @@ from agent_platform.monitoring import log_classification
 
 
 # ============================================================================
-# EXTRACTED THRESHOLDS (From unified_classifier.py - UNCHANGED)
+# EXTRACTED THRESHOLDS (Adjusted for learning-first approach)
 # ============================================================================
 
 # ← SAME thresholds as unified_classifier.py and Config
-HIGH_CONFIDENCE_THRESHOLD = 0.85  # Stop early stopping if confidence >= this
-MEDIUM_CONFIDENCE_THRESHOLD = 0.6  # Review queue threshold
+HIGH_CONFIDENCE_THRESHOLD = 0.90  # ❗ RAISED from 0.85 → fewer early stops
+MEDIUM_CONFIDENCE_THRESHOLD = 0.65  # ❗ RAISED from 0.60 → better separation
 LOW_IMPORTANCE_THRESHOLD = 0.4    # Low-priority threshold
 HIGH_IMPORTANCE_THRESHOLD = 0.7   # Auto-reply eligibility threshold
 

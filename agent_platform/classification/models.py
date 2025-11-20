@@ -285,16 +285,16 @@ class ClassificationThresholds(BaseModel):
     Controls when to skip to next layer and what actions to take
     based on confidence levels.
     """
-    # Confidence thresholds
+    # Confidence thresholds (adjusted for learning-first approach)
     high_confidence_threshold: float = Field(
-        0.85,
+        0.90,  # ❗ RAISED from 0.85 → fewer early stops, more learning
         ge=0.0,
         le=1.0,
-        description="Skip to action if confidence >= this (default: 0.85)"
+        description="Skip to action if confidence >= this (default: 0.90, was 0.85)"
     )
 
     medium_confidence_threshold: float = Field(
-        0.6,
+        0.65,  # ❗ RAISED from 0.60 → better separation
         ge=0.0,
         le=1.0,
         description="Add to review queue if confidence >= this (default: 0.6)"

@@ -133,6 +133,99 @@ count = count_events(
 - Historical analysis
 - Digital Twin behavior modeling
 
+### 3.1 Email Extraction Pattern
+
+Email extraction uses **Structured Outputs** (Pydantic models as `response_format`) for type-safe LLM responses:
+
+```python
+from agent_platform.extraction import ExtractionAgent
+from agent_platform.classification import EmailToClassify
+
+# Create extraction agent
+extraction_agent = ExtractionAgent()
+
+# Create email to analyze
+email = EmailToClassify(
+    email_id="msg_123",
+    account_id="gmail_1",
+    sender="boss@company.com",
+    subject="Project Update - Action Required",
+    body="Please review the Q4 report by Friday and send me the numbers.",
+)
+
+# Extract structured information
+extraction_result = await extraction_agent.extract(email)
+
+# Access extraction results
+print(f"Summary: {extraction_result.summary}")
+print(f"Main Topic: {extraction_result.main_topic}")
+print(f"Sentiment: {extraction_result.sentiment}")
+print(f"Has Action Items: {extraction_result.has_action_items}")
+
+# Access extracted tasks
+for task in extraction_result.tasks:
+    print(f"  Task: {task.description}")
+    print(f"  Deadline: {task.deadline}")
+    print(f"  Priority: {task.priority}")
+    print(f"  Requires My Action: {task.requires_action_from_me}")
+    print(f"  Context: {task.context}")
+
+# Access extracted decisions
+for decision in extraction_result.decisions:
+    print(f"  Decision: {decision.question}")
+    print(f"  Options: {', '.join(decision.options)}")
+    print(f"  Urgency: {decision.urgency}")
+    print(f"  Requires My Input: {decision.requires_my_input}")
+
+# Access extracted questions
+for question in extraction_result.questions:
+    print(f"  Question: {question.question}")
+    print(f"  Requires Response: {question.requires_response}")
+    print(f"  Type: {question.question_type}")
+
+# Get summary dict
+summary = extraction_result.to_summary_dict()
+print(f"Total Items: {summary['total_items']}")
+```
+
+**Integration with Classification Pipeline:**
+
+```python
+from agent_platform.orchestration import ClassificationOrchestrator
+
+orchestrator = ClassificationOrchestrator()
+
+# Process emails (classification + extraction)
+emails = [
+    {
+        'id': 'msg_1',
+        'subject': 'Meeting Tomorrow',
+        'sender': 'colleague@company.com',
+        'body': 'Can we meet at 10am to discuss the budget?',
+    },
+    ...
+]
+
+stats = await orchestrator.process_emails(emails, 'gmail_1')
+
+# Check extraction statistics
+print(f"Emails with extractions: {stats.emails_with_extractions}")
+print(f"Tasks extracted: {stats.total_tasks_extracted}")
+print(f"Decisions extracted: {stats.total_decisions_extracted}")
+print(f"Questions extracted: {stats.total_questions_extracted}")
+```
+
+**Extraction Models (agent_platform/extraction/models.py):**
+- `ExtractedTask`: description, deadline, priority, requires_action_from_me, context, assignee
+- `ExtractedDecision`: question, options, recommendation, urgency, requires_my_input, context
+- `ExtractedQuestion`: question, context, requires_response, urgency, question_type
+- `EmailExtraction`: summary, main_topic, sentiment, has_action_items, tasks, decisions, questions
+
+**LLM Provider:**
+- **Ollama-first** (qwen2.5:7b): Local, free, fast (~3s per email)
+- **OpenAI fallback** (gpt-4o): Cloud, paid, reliable (~1s per email)
+- Automatic fallback if Ollama unavailable
+
 ### 4. Multi-Account Configuration
 
 Configuration uses a centralized `Config` class with per-account modes:
@@ -186,8 +279,14 @@ python -c "from platform.db.database import init_db; init_db()"
 ### Testing Email Module
 
 ```bash
-# Test classifier only (requires OAuth on first run)
+# Test classification system
 python scripts/run_classifier.py
+
+# Test extraction agent
+pytest tests/extraction/test_extraction_agent.py -v
+
+# Test classification + extraction pipeline (integration)
+pytest tests/integration/test_classification_extraction_pipeline.py -v
 
 # Test responder (draft generation)
 python scripts/run_responder.py
