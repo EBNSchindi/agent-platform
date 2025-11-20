@@ -4,9 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multi-Agent Platform for email automation built with OpenAI Agents SDK. Implements plugin architecture where modules (Email, Calendar, Finance) register agents with a central registry for orchestration and cross-module communication.
+**Digital Twin Email Platform** - Intelligentes Email-Management-System mit Event-First Architecture und kontinuierlichem Lernen.
 
-**Current Status:** Email module MVP complete (classifier, responder, backup, guardrails, scheduler)
+**Current Status:** Phase 1 in Development
+- ✅ Email Importance Classification (3-Layer: Rules → History → LLM)
+- ✅ Event-Log System (Foundation für Digital Twin)
+- 🚧 Email Extraction (Tasks, Decisions, Questions)
+
+**Important Documents:**
+- [PROJECT_SCOPE.md](PROJECT_SCOPE.md) - Quick Reference & Aktueller Status
+- [docs/VISION.md](docs/VISION.md) - Big Picture & Langfristige Roadmap
+- [docs/MAINTENANCE.md](docs/MAINTENANCE.md) - Dokumentations-Wartung
 
 ## Architecture Principles
 
@@ -62,7 +70,70 @@ Based on patterns from `/agent-systems/2_openai/` Labs 1-4:
 - Use `asyncio.gather()` for parallel execution
 - Example: EmailOrchestrator processes multiple accounts concurrently
 
-### 3. Multi-Account Configuration
+### 3. Event-First Architecture (Digital Twin Foundation)
+
+**Core Principle:** All actions are logged as immutable events. Memory-Objects are derived from these events.
+
+**Event-Logging Pattern:**
+
+```python
+from agent_platform.events import log_event, get_events, EventType
+
+# Log an event
+log_event(
+    event_type=EventType.EMAIL_CLASSIFIED,
+    account_id="gmail_1",
+    email_id="msg_123",
+    payload={
+        'category': 'wichtig',
+        'confidence': 0.92,
+        'importance': 0.85,
+        'layer_used': 'llm'
+    },
+    extra_metadata={
+        'llm_provider': 'openai_fallback'
+    },
+    processing_time_ms=1234.5
+)
+
+# Query events
+events = get_events(
+    event_type=EventType.EMAIL_CLASSIFIED,
+    account_id="gmail_1",
+    start_time=today_start,
+    limit=100
+)
+
+# Get events for specific email
+email_events = get_events_for_email(email_id="msg_123")
+
+# Count events
+count = count_events(
+    event_type=EventType.EMAIL_CLASSIFIED,
+    account_id="gmail_1"
+)
+```
+
+**Event Types (agent_platform/events/event_types.py):**
+- `EMAIL_RECEIVED`, `EMAIL_CLASSIFIED`, `EMAIL_ANALYZED`, `EMAIL_SUMMARIZED`
+- `TASK_EXTRACTED`, `DECISION_EXTRACTED`, `QUESTION_EXTRACTED`
+- `USER_FEEDBACK`, `USER_CORRECTION`, `USER_CONFIRMATION`
+- `JOURNAL_GENERATED`, `JOURNAL_REVIEWED`
+
+**When to log events:**
+- ✅ After every classification
+- ✅ After every extraction (Task, Decision, Question)
+- ✅ After every user action (feedback, corrections)
+- ✅ After every journal generation
+- ✅ Whenever state changes in the system
+
+**Event-Log Benefits:**
+- Complete audit trail
+- Foundation for learning (preference tracking)
+- Historical analysis
+- Digital Twin behavior modeling
+
+### 4. Multi-Account Configuration
 
 Configuration uses a centralized `Config` class with per-account modes:
 

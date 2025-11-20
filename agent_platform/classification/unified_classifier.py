@@ -137,6 +137,7 @@ class UnifiedClassifier:
                 # Log classification
                 log_classification(
                     email_id=email.email_id,
+                    account_id=email.account_id,
                     processing_time_ms=processing_time_ms,
                     layer_used="rules",
                     category=rule_result.category,
@@ -180,6 +181,7 @@ class UnifiedClassifier:
                 # Log classification
                 log_classification(
                     email_id=email.email_id,
+                    account_id=email.account_id,
                     processing_time_ms=processing_time_ms,
                     layer_used="history",
                     category=history_result.category,
@@ -254,6 +256,7 @@ class UnifiedClassifier:
         # Log classification
         log_classification(
             email_id=email.email_id,
+            account_id=email.account_id,
             processing_time_ms=processing_time_ms,
             layer_used="llm",
             category=llm_result.category,

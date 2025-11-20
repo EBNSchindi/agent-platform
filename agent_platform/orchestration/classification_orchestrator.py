@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from agent_platform.db.models import ProcessedEmail
 from agent_platform.db.database import get_db
 from agent_platform.classification import UnifiedClassifier, EmailToClassify
+from agent_platform.extraction import ExtractionAgent
 from agent_platform.review import ReviewQueueManager
 
 
@@ -46,6 +47,12 @@ class EmailProcessingStats(BaseModel):
 
     # By category
     by_category: Dict[str, int] = Field(default_factory=dict)
+
+    # Extraction stats (NEW)
+    emails_with_extractions: int = 0
+    total_tasks_extracted: int = 0
+    total_decisions_extracted: int = 0
+    total_questions_extracted: int = 0
 
     # Timing
     started_at: datetime = Field(default_factory=datetime.utcnow)
@@ -88,6 +95,7 @@ class ClassificationOrchestrator:
 
         # Initialize components
         self.classifier = UnifiedClassifier()
+        self.extraction_agent = ExtractionAgent()
         self.queue_manager = ReviewQueueManager(db=self.db)
 
     def __del__(self):
@@ -165,7 +173,7 @@ class ClassificationOrchestrator:
             received_at=received_at,
         )
 
-        # Classify email
+        # Step 1: Classify email
         print(f"   🔍 Classifying...")
         classification = await self.classifier.classify(email_to_classify)
 
@@ -174,11 +182,26 @@ class ClassificationOrchestrator:
         print(f"   🎯 Confidence: {classification.confidence:.0%}")
         print(f"   🏷️  Layer: {classification.layer_used}")
 
+        # Step 2: Extract information (Tasks, Decisions, Questions)
+        print(f"   🔎 Extracting information...")
+        extraction = await self.extraction_agent.extract(email_to_classify)
+
+        print(f"   📋 Extracted: {extraction.task_count} tasks, "
+              f"{extraction.decision_count} decisions, "
+              f"{extraction.question_count} questions")
+
         # Update stats
         stats.total_processed += 1
         stats.by_category[classification.category] = stats.by_category.get(
             classification.category, 0
         ) + 1
+
+        # Update extraction stats
+        if extraction.total_items > 0:
+            stats.emails_with_extractions += 1
+        stats.total_tasks_extracted += extraction.task_count
+        stats.total_decisions_extracted += extraction.decision_count
+        stats.total_questions_extracted += extraction.question_count
 
         # Route based on confidence
         if classification.confidence >= self.HIGH_CONFIDENCE_THRESHOLD:
@@ -348,6 +371,14 @@ class ClassificationOrchestrator:
                 reverse=True
             ):
                 print(f"   {category:20s}: {count:>3}")
+
+        # Extraction statistics (NEW)
+        print(f"\n📋 Extraction Results:")
+        print(f"   Emails with items: {stats.emails_with_extractions:>3} ({stats.emails_with_extractions/stats.total_processed*100:.0f}%)" if stats.total_processed > 0 else "   Emails with items:   0")
+        print(f"   Tasks extracted:   {stats.total_tasks_extracted:>3}")
+        print(f"   Decisions extracted: {stats.total_decisions_extracted:>3}")
+        print(f"   Questions extracted: {stats.total_questions_extracted:>3}")
+        print(f"   Total items:       {stats.total_tasks_extracted + stats.total_decisions_extracted + stats.total_questions_extracted:>3}")
 
         print(f"{'=' * 70}\n")
 
