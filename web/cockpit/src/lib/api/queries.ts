@@ -448,3 +448,94 @@ export const useThreadEmails = (threadId: string, accountId?: string) => {
     enabled: !!threadId,
   });
 };
+
+// ============================================================================
+// History Scan Queries
+// ============================================================================
+
+import type { ScanConfig, ScanProgress } from '../types/history-scan';
+
+export const useStartScan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (config: ScanConfig) => {
+      const { data } = await apiClient.post<ScanProgress>('/history-scan/start', config);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['history-scan'] });
+    },
+  });
+};
+
+export const useScanProgress = (scanId: string, refetchInterval: number = 2000) => {
+  return useQuery({
+    queryKey: ['history-scan', scanId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ScanProgress>(`/history-scan/${scanId}`);
+      return data;
+    },
+    enabled: !!scanId,
+    refetchInterval: (data) => {
+      // Stop polling if scan is completed/failed/paused
+      if (data?.status && ['completed', 'failed', 'paused'].includes(data.status)) {
+        return false;
+      }
+      return refetchInterval;
+    },
+  });
+};
+
+export const useActiveScans = () => {
+  return useQuery({
+    queryKey: ['history-scan', 'active'],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ScanProgress[]>('/history-scan');
+      return data;
+    },
+    refetchInterval: 5000,
+  });
+};
+
+export const usePauseScan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (scanId: string) => {
+      const { data } = await apiClient.post(`/history-scan/${scanId}/pause`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['history-scan'] });
+    },
+  });
+};
+
+export const useResumeScan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (scanId: string) => {
+      const { data } = await apiClient.post(`/history-scan/${scanId}/resume`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['history-scan'] });
+    },
+  });
+};
+
+export const useCancelScan = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (scanId: string) => {
+      const { data } = await apiClient.post(`/history-scan/${scanId}/cancel`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['history-scan'] });
+    },
+  });
+};
