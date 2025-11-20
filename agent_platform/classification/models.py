@@ -376,7 +376,7 @@ class LayerScore(BaseModel):
     )
 
     # Optional: Provider info for LLM layer
-    llm_provider: Optional[Literal["ollama", "openai"]] = Field(
+    llm_provider: Optional[Literal["ollama", "openai", "openai_fallback"]] = Field(
         None,
         description="LLM provider used (if layer=llm)"
     )

@@ -37,6 +37,7 @@ Usage:
 
 import time
 import asyncio
+import logging
 from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -55,7 +56,6 @@ from agent_platform.classification.importance_llm import LLMLayer
 from agent_platform.core.config import Config
 from agent_platform.db.database import get_db
 from agent_platform.events import log_event, EventType
-from agent_platform.monitoring import SystemLogger
 
 
 class EnsembleClassifier:
@@ -115,7 +115,7 @@ class EnsembleClassifier:
         }
 
         # Logger
-        self.logger = SystemLogger(component="ensemble_classifier")
+        self.logger = logging.getLogger("agent_platform.ensemble_classifier")
 
     def __del__(self):
         """Clean up database session if we created it."""
