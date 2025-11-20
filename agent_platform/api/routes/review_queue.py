@@ -156,6 +156,38 @@ def list_review_queue_items(
     )
 
 
+@router.get("/review-queue/stats", response_model=ReviewQueueStatsResponse)
+def get_review_queue_stats(
+    account_id: Optional[str] = Query(None, description="Filter by account ID"),
+    db: Session = Depends(get_db_session),
+):
+    """
+    Get review queue statistics.
+
+    Returns aggregate statistics about the review queue:
+    - Total items
+    - Pending count
+    - Approved/Rejected/Modified counts
+    - Average importance and confidence scores
+
+    Query Parameters:
+        - account_id: Filter by account (optional)
+    """
+    queue_manager = ReviewQueueManager(db=db)
+
+    stats = queue_manager.get_queue_statistics(account_id=account_id)
+
+    return ReviewQueueStatsResponse(
+        total_items=stats.get("total_items", 0),
+        pending_count=stats.get("pending", 0),
+        approved_count=stats.get("approved", 0),
+        rejected_count=stats.get("rejected", 0),
+        modified_count=stats.get("modified", 0),
+        by_category=stats.get("by_category", {}),
+        avg_age_hours=stats.get("avg_age_hours", 0.0),
+    )
+
+
 @router.get("/review-queue/{item_id}", response_model=ReviewQueueItemResponse)
 def get_review_queue_item(
     item_id: int,
@@ -306,38 +338,6 @@ def modify_review_item(
         message=f"Classification modified to '{request.corrected_category}' successfully",
         item=ReviewQueueItemResponse.model_validate(item) if item else None,
         action_applied=result.get("action_applied"),
-    )
-
-
-@router.get("/review-queue/stats", response_model=ReviewQueueStatsResponse)
-def get_review_queue_stats(
-    account_id: Optional[str] = Query(None, description="Filter by account ID"),
-    db: Session = Depends(get_db_session),
-):
-    """
-    Get review queue statistics.
-
-    Returns aggregate statistics about the review queue:
-    - Total items
-    - Pending count
-    - Approved/Rejected/Modified counts
-    - Average importance and confidence scores
-
-    Query Parameters:
-        - account_id: Filter by account (optional)
-    """
-    queue_manager = ReviewQueueManager(db=db)
-
-    stats = queue_manager.get_queue_statistics(account_id=account_id)
-
-    return ReviewQueueStatsResponse(
-        total_items=stats.get("total_items", 0),
-        pending_count=stats.get("pending", 0),
-        approved_count=stats.get("approved", 0),
-        rejected_count=stats.get("rejected", 0),
-        modified_count=stats.get("modified", 0),
-        by_category=stats.get("by_category", {}),
-        avg_age_hours=stats.get("avg_age_hours", 0.0),
     )
 
 
