@@ -85,6 +85,13 @@ class ReviewQueueManager:
         Returns:
             Created ReviewQueueItem
         """
+        # Extract attributes (supports both Ensemble and Legacy)
+        category = getattr(classification, 'final_category', None) or classification.category
+        importance = getattr(classification, 'final_importance', None) or classification.importance
+        confidence = getattr(classification, 'final_confidence', None) or classification.confidence
+        layer_used = getattr(classification, 'layer_used', 'ensemble')
+        reasoning = getattr(classification, 'combined_reasoning', None) or getattr(classification, 'reasoning', '')
+
         # Create review queue item
         queue_item = ReviewQueueItem(
             account_id=account_id,
@@ -93,13 +100,13 @@ class ReviewQueueManager:
             subject=subject,
             sender=sender,
             snippet=snippet,
-            suggested_category=classification.category,
-            importance_score=classification.importance,
-            confidence=classification.confidence,
-            reasoning=classification.reasoning,
+            suggested_category=category,
+            importance_score=importance,
+            confidence=confidence,
+            reasoning=reasoning,
             status="pending",
             extra_metadata={
-                "layer_used": classification.layer_used,
+                "layer_used": layer_used,
                 "added_by": "classification_system",
             }
         )
@@ -129,7 +136,10 @@ class ReviewQueueManager:
         min_threshold = min_threshold or self.DEFAULT_CONFIDENCE_THRESHOLD_MIN
         max_threshold = max_threshold or self.DEFAULT_CONFIDENCE_THRESHOLD_MAX
 
-        return min_threshold <= classification.confidence < max_threshold
+        # Extract confidence (supports both Ensemble and Legacy)
+        confidence = getattr(classification, 'final_confidence', None) or classification.confidence
+
+        return min_threshold <= confidence < max_threshold
 
     # ========================================================================
     # RETRIEVING FROM QUEUE

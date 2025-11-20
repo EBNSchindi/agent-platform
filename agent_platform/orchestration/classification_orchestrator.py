@@ -1,20 +1,23 @@
 """
-Classification Orchestrator
+Classification Orchestrator (Phase 2: Ensemble System)
 
 Orchestrates the complete email classification workflow:
 1. Fetch emails from account
-2. Classify using UnifiedClassifier (Rule → History → LLM)
+2. Classify using EnsembleClassifier (All 3 layers parallel + weighted combination)
 3. Route based on confidence:
-   - High (≥0.85): Auto-action (label, archive)
-   - Medium (0.6-0.85): Add to review queue
-   - Low (<0.6): Mark for manual review
+   - High (≥0.90): Auto-action (label, archive)
+   - Medium (0.65-0.90): Add to review queue
+   - Low (<0.65): Mark for manual review
 4. Save ProcessedEmail records
 5. Return statistics
 
-This integrates all components built in Phases 1-5:
-- UnifiedClassifier (Phases 1-3)
-- FeedbackTracker (Phase 4)
-- ReviewQueueManager (Phase 5)
+This integrates all components:
+- EnsembleClassifier (Phase 2 - NEW)
+- ExtractionAgent (Phase 1)
+- ReviewQueueManager (Phase 1)
+
+Legacy Support:
+- Can optionally use LegacyClassifier (early-stopping) via use_legacy=True
 """
 
 import asyncio
@@ -25,7 +28,12 @@ from sqlalchemy.orm import Session
 
 from agent_platform.db.models import ProcessedEmail
 from agent_platform.db.database import get_db
-from agent_platform.classification import UnifiedClassifier, EmailToClassify
+from agent_platform.classification import (
+    EnsembleClassifier,
+    LegacyClassifier,
+    EmailToClassify,
+    ScoringWeights,
+)
 from agent_platform.extraction import ExtractionAgent
 from agent_platform.review import ReviewQueueManager
 
@@ -67,24 +75,34 @@ class EmailProcessingStats(BaseModel):
 
 class ClassificationOrchestrator:
     """
-    Orchestrates the complete email classification workflow.
+    Orchestrates the complete email classification workflow (Phase 2).
 
     Integrates:
-    - UnifiedClassifier (Rule + History + LLM layers)
+    - EnsembleClassifier (All 3 layers parallel + weighted combination) - DEFAULT
+    - LegacyClassifier (Early-stopping) - Optional for backwards compatibility
     - ReviewQueueManager (for medium-confidence items)
     - ProcessedEmail database tracking
     """
 
-    # Confidence thresholds
-    HIGH_CONFIDENCE_THRESHOLD = 0.85
-    MEDIUM_CONFIDENCE_THRESHOLD = 0.60
+    # Confidence thresholds (Phase 2 - adjusted for ensemble system)
+    HIGH_CONFIDENCE_THRESHOLD = 0.90  # Raised from 0.85 (ensemble provides higher confidence)
+    MEDIUM_CONFIDENCE_THRESHOLD = 0.65  # Raised from 0.60 (better separation)
 
-    def __init__(self, db: Optional[Session] = None):
+    def __init__(
+        self,
+        db: Optional[Session] = None,
+        use_legacy: bool = False,
+        ensemble_weights: Optional[ScoringWeights] = None,
+        smart_llm_skip: bool = False,
+    ):
         """
         Initialize orchestrator.
 
         Args:
             db: Optional database session
+            use_legacy: If True, use LegacyClassifier (early-stopping) instead of EnsembleClassifier
+            ensemble_weights: Optional custom weights for ensemble scoring (ignored if use_legacy=True)
+            smart_llm_skip: If True, enable Smart LLM skip optimization (~60-70% cost savings)
         """
         self.db = db
         self._owns_db = False
@@ -93,8 +111,21 @@ class ClassificationOrchestrator:
             self.db = get_db().__enter__()
             self._owns_db = True
 
-        # Initialize components
-        self.classifier = UnifiedClassifier()
+        # Initialize classifier (Ensemble or Legacy)
+        self.use_legacy = use_legacy
+
+        if use_legacy:
+            print("⚠️  Using LegacyClassifier (early-stopping architecture)")
+            self.classifier = LegacyClassifier(db=self.db)
+        else:
+            print("✅ Using EnsembleClassifier (parallel layers + weighted combination)")
+            self.classifier = EnsembleClassifier(
+                db=self.db,
+                weights=ensemble_weights,
+                smart_llm_skip=smart_llm_skip
+            )
+
+        # Initialize other components
         self.extraction_agent = ExtractionAgent()
         self.queue_manager = ReviewQueueManager(db=self.db)
 
@@ -146,6 +177,18 @@ class ClassificationOrchestrator:
 
         return stats
 
+    def _get_classification_attrs(self, classification):
+        """
+        Extract attributes from classification result.
+
+        Supports both EnsembleClassification (final_*) and LegacyClassification (*).
+        """
+        category = getattr(classification, 'final_category', None) or classification.category
+        importance = getattr(classification, 'final_importance', None) or classification.importance
+        confidence = getattr(classification, 'final_confidence', None) or classification.confidence
+
+        return category, importance, confidence
+
     async def _process_single_email(
         self,
         email: Dict[str, Any],
@@ -177,10 +220,14 @@ class ClassificationOrchestrator:
         print(f"   🔍 Classifying...")
         classification = await self.classifier.classify(email_to_classify)
 
-        print(f"   📊 Category: {classification.category}")
-        print(f"   ⚖️  Importance: {classification.importance:.0%}")
-        print(f"   🎯 Confidence: {classification.confidence:.0%}")
-        print(f"   🏷️  Layer: {classification.layer_used}")
+        # Extract attributes (supports both Ensemble and Legacy)
+        category, importance, confidence = self._get_classification_attrs(classification)
+        layer_used = getattr(classification, 'layer_used', 'ensemble')
+
+        print(f"   📊 Category: {category}")
+        print(f"   ⚖️  Importance: {importance:.0%}")
+        print(f"   🎯 Confidence: {confidence:.0%}")
+        print(f"   🏷️  Layer: {layer_used}")
 
         # Step 2: Extract information (Tasks, Decisions, Questions)
         print(f"   🔎 Extracting information...")
@@ -192,9 +239,7 @@ class ClassificationOrchestrator:
 
         # Update stats
         stats.total_processed += 1
-        stats.by_category[classification.category] = stats.by_category.get(
-            classification.category, 0
-        ) + 1
+        stats.by_category[category] = stats.by_category.get(category, 0) + 1
 
         # Update extraction stats
         if extraction.total_items > 0:
@@ -204,25 +249,25 @@ class ClassificationOrchestrator:
         stats.total_questions_extracted += extraction.question_count
 
         # Route based on confidence
-        if classification.confidence >= self.HIGH_CONFIDENCE_THRESHOLD:
+        if confidence >= self.HIGH_CONFIDENCE_THRESHOLD:
             # HIGH CONFIDENCE: Auto-action
             stats.high_confidence += 1
             await self._handle_high_confidence(
-                email, classification, account_id, stats
+                email, classification, category, account_id, stats
             )
 
-        elif classification.confidence >= self.MEDIUM_CONFIDENCE_THRESHOLD:
+        elif confidence >= self.MEDIUM_CONFIDENCE_THRESHOLD:
             # MEDIUM CONFIDENCE: Review queue
             stats.medium_confidence += 1
             await self._handle_medium_confidence(
-                email, classification, account_id, stats
+                email, classification, category, confidence, account_id, stats
             )
 
         else:
             # LOW CONFIDENCE: Manual review
             stats.low_confidence += 1
             await self._handle_low_confidence(
-                email, classification, account_id, stats
+                email, classification, category, account_id, stats
             )
 
         # Save ProcessedEmail record
@@ -236,6 +281,7 @@ class ClassificationOrchestrator:
         self,
         email: Dict[str, Any],
         classification,
+        category: str,
         account_id: str,
         stats: EmailProcessingStats,
     ):
@@ -243,7 +289,7 @@ class ClassificationOrchestrator:
         print(f"   ✅ HIGH CONFIDENCE → Auto-action")
 
         # Apply label (placeholder - would integrate with email tools)
-        label = self._get_label_for_category(classification.category)
+        label = self._get_label_for_category(category)
         print(f"   🏷️  Label: {label}")
 
         # Would apply label via Gmail/IMAP tools here
@@ -255,6 +301,8 @@ class ClassificationOrchestrator:
         self,
         email: Dict[str, Any],
         classification,
+        category: str,
+        confidence: float,
         account_id: str,
         stats: EmailProcessingStats,
     ):
@@ -278,6 +326,7 @@ class ClassificationOrchestrator:
         self,
         email: Dict[str, Any],
         classification,
+        category: str,
         account_id: str,
         stats: EmailProcessingStats,
     ):
@@ -305,6 +354,19 @@ class ClassificationOrchestrator:
         # from email_accounts table
         db_account_id = 1  # Placeholder
 
+        # Extract attributes (supports both Ensemble and Legacy)
+        category, importance, confidence = self._get_classification_attrs(classification)
+        layer_used = getattr(classification, 'layer_used', 'ensemble')
+
+        # Get LLM provider (different for ensemble vs legacy)
+        llm_provider = None
+        if hasattr(classification, 'llm_score') and classification.llm_score:
+            llm_provider = classification.llm_score.llm_provider
+        elif hasattr(classification, 'llm_provider_used'):
+            llm_provider = classification.llm_provider_used
+        else:
+            llm_provider = f"{layer_used}_only"
+
         processed_email = ProcessedEmail(
             account_id=db_account_id,
             email_id=email.get('id'),
@@ -312,17 +374,17 @@ class ClassificationOrchestrator:
             subject=email.get('subject'),
             received_at=email.get('received_at', datetime.utcnow()),
             processed_at=datetime.utcnow(),
-            category=classification.category,
-            importance_score=classification.importance,
-            classification_confidence=classification.confidence,
-            llm_provider_used=classification.llm_provider_used or f"{classification.layer_used}_only",
-            rule_layer_hint=classification.reasoning if classification.layer_used == "rules" else None,
-            history_layer_hint=classification.reasoning if classification.layer_used == "history" else None,
+            category=category,
+            importance_score=importance,
+            classification_confidence=confidence,
+            llm_provider_used=llm_provider,
+            rule_layer_hint=getattr(classification, 'reasoning', None) if layer_used == "rules" else None,
+            history_layer_hint=getattr(classification, 'reasoning', None) if layer_used == "history" else None,
             extra_metadata={
-                'layer_used': classification.layer_used,
-                'processing_time_ms': classification.processing_time_ms,
-                'reasoning': classification.reasoning,
-                'low_confidence': classification.confidence < self.MEDIUM_CONFIDENCE_THRESHOLD,
+                'layer_used': layer_used,
+                'processing_time_ms': getattr(classification, 'processing_time_ms', 0),
+                'reasoning': getattr(classification, 'reasoning', getattr(classification, 'combined_reasoning', '')),
+                'low_confidence': confidence < self.MEDIUM_CONFIDENCE_THRESHOLD,
             }
         )
 
