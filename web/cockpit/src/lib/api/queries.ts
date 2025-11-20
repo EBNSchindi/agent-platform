@@ -22,6 +22,16 @@ import type {
   ModifyRequest,
   ActionResponse,
 } from '../types/review-queue';
+import type {
+  AttachmentMetadata,
+  AttachmentListResponse,
+  AttachmentFilters,
+} from '../types/attachments';
+import type {
+  ThreadSummary,
+  ThreadEmailsResponse,
+  ThreadSummaryFilters,
+} from '../types/threads';
 
 // ============================================================================
 // Email-Agent Queries
@@ -351,11 +361,90 @@ export const useDeleteReviewItem = () => {
 
   return useMutation({
     mutationFn: async (itemId: number) => {
-      const { data } = await apiClient.delete(`/review-queue/${itemId}`);
+      const { data} = await apiClient.delete(`/review-queue/${itemId}`);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['review-queue'] });
     },
+  });
+};
+
+// ============================================================================
+// Attachment Queries
+// ============================================================================
+
+export const useAttachments = (filters?: AttachmentFilters) => {
+  return useQuery({
+    queryKey: ['attachments', filters],
+    queryFn: async () => {
+      const { data } = await apiClient.get<AttachmentListResponse>('/attachments', {
+        params: filters,
+      });
+      return data;
+    },
+    enabled: !!(filters?.email_id || filters?.account_id),
+  });
+};
+
+export const useAttachment = (attachmentId: string) => {
+  return useQuery({
+    queryKey: ['attachments', attachmentId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<AttachmentMetadata>(`/attachments/${attachmentId}`);
+      return data;
+    },
+    enabled: !!attachmentId,
+  });
+};
+
+// Download attachment (triggers browser download)
+export const downloadAttachment = async (attachmentId: string, filename: string) => {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/attachments/${attachmentId}/download`);
+
+  if (!response.ok) {
+    throw new Error('Download failed');
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+};
+
+// ============================================================================
+// Thread Queries
+// ============================================================================
+
+export const useThreadSummary = (filters: ThreadSummaryFilters) => {
+  return useQuery({
+    queryKey: ['threads', filters.thread_id, 'summary', filters],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ThreadSummary>(
+        `/threads/${filters.thread_id}/summary`,
+        { params: { account_id: filters.account_id, force_regenerate: filters.force_regenerate } }
+      );
+      return data;
+    },
+    enabled: !!(filters.thread_id && filters.account_id),
+  });
+};
+
+export const useThreadEmails = (threadId: string, accountId?: string) => {
+  return useQuery({
+    queryKey: ['threads', threadId, 'emails', accountId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ThreadEmailsResponse>(
+        `/threads/${threadId}/emails`,
+        { params: { account_id: accountId } }
+      );
+      return data;
+    },
+    enabled: !!threadId,
   });
 };
