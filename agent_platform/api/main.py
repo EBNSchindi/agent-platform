@@ -15,6 +15,8 @@ from agent_platform.api.routes import (
     questions,
     dashboard,
     review_queue,
+    attachments,
+    threads,
 )
 
 
@@ -66,6 +68,8 @@ app.include_router(decisions.router, prefix="/api/v1", tags=["decisions"])
 app.include_router(questions.router, prefix="/api/v1", tags=["questions"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(review_queue.router, prefix="/api/v1", tags=["review-queue"])
+app.include_router(attachments.router)  # Already has /api/v1 prefix
+app.include_router(threads.router)  # Already has /api/v1 prefix
 
 
 if __name__ == "__main__":

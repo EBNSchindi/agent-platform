@@ -62,6 +62,19 @@ class EventType(str, Enum):
     GMAIL_MARKED_READ = "GMAIL_MARKED_READ"
     """Email was marked as read in Gmail"""
 
+    # Attachment Events (Phase 4)
+    ATTACHMENT_DOWNLOADED = "ATTACHMENT_DOWNLOADED"
+    """Attachment was successfully downloaded"""
+
+    ATTACHMENT_DEDUPLICATED = "ATTACHMENT_DEDUPLICATED"
+    """Attachment was deduplicated (already exists)"""
+
+    ATTACHMENT_SKIPPED = "ATTACHMENT_SKIPPED"
+    """Attachment was skipped (too large, etc.)"""
+
+    ATTACHMENT_DOWNLOAD_FAILED = "ATTACHMENT_DOWNLOAD_FAILED"
+    """Attachment download failed"""
+
     # ========================================================================
     # USER INTERACTION EVENTS (Phase 1 - HITL)
     # ========================================================================
@@ -171,6 +184,13 @@ GMAIL_ACTION_EVENTS = {
     EventType.GMAIL_MARKED_READ,
 }
 
+ATTACHMENT_EVENTS = {
+    EventType.ATTACHMENT_DOWNLOADED,
+    EventType.ATTACHMENT_DEDUPLICATED,
+    EventType.ATTACHMENT_SKIPPED,
+    EventType.ATTACHMENT_DOWNLOAD_FAILED,
+}
+
 USER_INTERACTION_EVENTS = {
     EventType.USER_FEEDBACK,
     EventType.USER_CORRECTION,
@@ -210,6 +230,7 @@ PHASE_1_EVENTS = (
     EMAIL_EVENTS
     | EXTRACTION_EVENTS
     | GMAIL_ACTION_EVENTS
+    | ATTACHMENT_EVENTS
     | USER_INTERACTION_EVENTS
     | {EventType.JOURNAL_GENERATED, EventType.JOURNAL_REVIEWED}
 )
