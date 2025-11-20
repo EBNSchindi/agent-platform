@@ -1,7 +1,13 @@
 """
-Unified Three-Layer Email Importance Classifier
+DEPRECATED: Legacy Three-Layer Email Importance Classifier
 
-Orchestrates the three-layer classification system:
+⚠️ This classifier is DEPRECATED. Use EnsembleClassifier instead.
+
+This classifier uses early-stopping architecture (Rule → History → LLM),
+which has been superseded by the Ensemble system that runs all layers
+in parallel for maximum accuracy and confidence.
+
+Legacy Architecture:
 1. Rule Layer: Fast pattern matching (no LLM)
 2. History Layer: User behavior learning (no LLM)
 3. LLM Layer: Deep semantic analysis (Ollama-first + OpenAI fallback)
@@ -10,8 +16,13 @@ High-confidence results from earlier layers skip subsequent layers for
 efficiency. Only emails that can't be classified with high confidence
 by rules or history proceed to the LLM layer.
 
-Usage:
-    classifier = UnifiedClassifier()
+For new code, use:
+    from agent_platform.classification import EnsembleClassifier
+    classifier = EnsembleClassifier()
+    result = await classifier.classify(email)
+
+Legacy Usage:
+    classifier = LegacyClassifier()
     result = await classifier.classify(email)
 """
 
@@ -32,9 +43,14 @@ from agent_platform.db.database import get_db
 from agent_platform.monitoring import log_classification, SystemLogger
 
 
-class UnifiedClassifier:
+class LegacyClassifier:
     """
-    Unified three-layer email importance classifier.
+    DEPRECATED: Legacy three-layer email importance classifier.
+
+    ⚠️ Use EnsembleClassifier instead for new code.
+
+    This classifier uses early-stopping architecture which has been
+    superseded by the Ensemble system.
 
     Orchestrates Rule → History → LLM layers with automatic
     short-circuiting on high-confidence results.
