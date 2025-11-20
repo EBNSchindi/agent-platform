@@ -22,6 +22,7 @@ from agent_platform.db.database import init_db
 from modules.email.module import register_email_module
 from modules.email.agents.orchestrator import process_all_inboxes
 from modules.email.agents.backup import run_monthly_backup
+from agent_platform.journal import JournalGenerator
 
 
 # ============================================================================
@@ -119,7 +120,20 @@ def setup_scheduler() -> AsyncIOScheduler:
 
     print(f"✅ Scheduled: Monthly backup on day {backup_day} at {backup_hour}:00")
 
-    # Task 3: Daily spam cleanup (optional - archives old spam)
+    # Task 3: Daily journal generation
+    journal_hour = Config.JOURNAL_GENERATION_HOUR
+
+    scheduler.add_job(
+        scheduled_journal_generation,
+        trigger=CronTrigger(hour=journal_hour, minute=0),  # Daily at configured hour
+        id='journal_generation',
+        name=f'Daily journal generation at {journal_hour}:00',
+        replace_existing=True
+    )
+
+    print(f"✅ Scheduled: Daily journal generation at {journal_hour}:00")
+
+    # Task 4: Daily spam cleanup (optional - archives old spam)
     scheduler.add_job(
         scheduled_spam_cleanup,
         trigger=CronTrigger(hour=2, minute=0),  # 2 AM daily
@@ -149,6 +163,61 @@ async def scheduled_spam_cleanup():
 
     except Exception as e:
         print(f"❌ Error during spam cleanup: {e}")
+
+
+async def scheduled_journal_generation():
+    """
+    Scheduled task: Generate daily journals for all accounts.
+    Runs daily at configured hour (default: 8 PM).
+    """
+    print("\n" + "=" * 70)
+    print(f"SCHEDULED JOURNAL GENERATION - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 70)
+
+    try:
+        generator = JournalGenerator()
+
+        # All accounts to generate journals for
+        accounts = ['gmail_1', 'gmail_2', 'gmail_3']
+
+        success_count = 0
+        failed_count = 0
+
+        for account_id in accounts:
+            try:
+                print(f"\n📝 Generating journal for {account_id}...")
+
+                # Generate journal (for today)
+                journal = await generator.generate_daily_journal(
+                    account_id=account_id,
+                    date=None  # Today
+                )
+
+                # Export to file
+                from pathlib import Path
+                filepath = generator.export_to_file(
+                    journal_entry=journal,
+                    account_id=account_id,
+                    output_dir='journals'
+                )
+
+                print(f"✅ Journal generated and exported: {filepath}")
+                success_count += 1
+
+            except Exception as e:
+                print(f"❌ Failed to generate journal for {account_id}: {str(e)}")
+                failed_count += 1
+
+        # Summary
+        print(f"\n✅ Journal generation completed:")
+        print(f"   Success: {success_count}")
+        if failed_count > 0:
+            print(f"   Failed: {failed_count}")
+
+    except Exception as e:
+        print(f"\n❌ Error during journal generation: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # ============================================================================
@@ -231,7 +300,11 @@ Scheduled Tasks:
      - Frequency: Day {backup_day} of month at {backup_hour}:00
      - Actions: Backup all emails to backup account
 
-  3. Spam Cleanup:
+  3. Journal Generation:
+     - Frequency: Daily at {journal_hour}:00
+     - Actions: Generate daily journals, export to markdown files
+
+  4. Spam Cleanup:
      - Frequency: Daily at 2:00 AM
      - Actions: Archive old spam emails
 
@@ -240,13 +313,15 @@ Configuration:
     INBOX_CHECK_INTERVAL_HOURS={inbox_check}
     BACKUP_DAY_OF_MONTH={backup_day}
     BACKUP_HOUR={backup_hour}
+    JOURNAL_GENERATION_HOUR={journal_hour}
 
 Stop Scheduler:
   Press Ctrl+C
     """.format(
         inbox_check=Config.INBOX_CHECK_INTERVAL_HOURS,
         backup_day=Config.BACKUP_DAY_OF_MONTH,
-        backup_hour=Config.BACKUP_HOUR
+        backup_hour=Config.BACKUP_HOUR,
+        journal_hour=Config.JOURNAL_GENERATION_HOUR
     ))
 
 

@@ -4,77 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Digital Twin Email Platform** - Intelligentes Email-Management-System mit Event-First Architecture und kontinuierlichem Lernen.
+**Digital Twin Email Platform** - An intelligent email management system with Event-First Architecture and continuous learning. The system learns from user behavior to assist with email processing proactively.
 
-**Current Status:** Phase 1 in Development
+**Current Status:** Phase 2 COMPLETE ✅
 - ✅ Email Importance Classification (3-Layer: Rules → History → LLM)
-- ✅ Event-Log System (Foundation für Digital Twin)
-- 🚧 Email Extraction (Tasks, Decisions, Questions)
+- ✅ Ensemble Classification System (Parallel 3-Layer + Weighted Scoring)
+- ✅ Event-Log System (Foundation for Digital Twin)
+- ✅ Email Extraction (Tasks, Decisions, Questions)
+- ✅ Memory-Objects & Journal Generation
+- ✅ Integration Testing (80 test functions, all passing)
 
 **Important Documents:**
-- [PROJECT_SCOPE.md](PROJECT_SCOPE.md) - Quick Reference & Aktueller Status
-- [docs/VISION.md](docs/VISION.md) - Big Picture & Langfristige Roadmap
-- [docs/MAINTENANCE.md](docs/MAINTENANCE.md) - Dokumentations-Wartung
+- [PROJECT_SCOPE.md](PROJECT_SCOPE.md) - Quick Reference & Current Status
+- [docs/VISION.md](docs/VISION.md) - Big Picture & Long-term Roadmap
 
 ## Architecture Principles
 
-### 1. Plugin-Based Module System
-
-Modules are independent plugins that register with the central `AgentRegistry`:
-
-```python
-# Module registration pattern
-from platform.core.registry import get_registry
-
-def register_email_module():
-    registry = get_registry()
-
-    # 1. Register module
-    registry.register_module(name="email", version="1.0.0", description="...")
-
-    # 2. Create agents
-    classifier = create_classifier_agent()
-
-    # 3. Register agents with capabilities
-    registry.register_agent(
-        module_name="email",
-        agent_name="classifier",
-        agent_instance=classifier,
-        agent_type="classifier",
-        capabilities=["email_classification", "spam_detection"]
-    )
-```
-
-**Key Pattern:** Agent IDs follow `module_name.agent_name` format (e.g., `email.classifier`)
-
-### 2. OpenAI Agents SDK Patterns
-
-Based on patterns from `/agent-systems/2_openai/` Labs 1-4:
-
-**Agent-as-Tool (Lab 2):**
-- Agents can be used as tools for other agents via `.as_tool()`
-- Example: Responder orchestrator uses 3 tone-specific sub-agents
-
-**Structured Outputs (Lab 3):**
-- All agents return Pydantic models for type safety
-- Use `output_type=YourPydanticModel` in Agent definition
-- Example: `EmailClassification` model with fields like `category`, `confidence`, `reasoning`
-
-**Guardrails (Lab 3):**
-- Use `@input_guardrail` and `@output_guardrail` decorators
-- Return `GuardrailFunctionOutput` with `tripwire_triggered=True` to stop execution
-- Example: PII detection, phishing detection, compliance checks
-
-**Orchestration (Lab 4):**
-- Manager-worker pattern with master orchestrator
-- Use `asyncio.gather()` for parallel execution
-- Example: EmailOrchestrator processes multiple accounts concurrently
-
-### 3. Event-First Architecture (Digital Twin Foundation)
+### 1. Event-First Architecture (Digital Twin Foundation)
 
 **Core Principle:** All actions are logged as immutable events. Memory-Objects are derived from these events.
-
-**Event-Logging Pattern:**
 
 ```python
 from agent_platform.events import log_event, get_events, EventType
@@ -88,10 +36,10 @@ log_event(
         'category': 'wichtig',
         'confidence': 0.92,
         'importance': 0.85,
-        'layer_used': 'llm'
+        'layer_used': 'ensemble'
     },
     extra_metadata={
-        'llm_provider': 'openai_fallback'
+        'weights_used': {'rule': 0.20, 'history': 0.30, 'llm': 0.50}
     },
     processing_time_ms=1234.5
 )
@@ -102,15 +50,6 @@ events = get_events(
     account_id="gmail_1",
     start_time=today_start,
     limit=100
-)
-
-# Get events for specific email
-email_events = get_events_for_email(email_id="msg_123")
-
-# Count events
-count = count_events(
-    event_type=EventType.EMAIL_CLASSIFIED,
-    account_id="gmail_1"
 )
 ```
 
@@ -127,24 +66,76 @@ count = count_events(
 - ✅ After every journal generation
 - ✅ Whenever state changes in the system
 
-**Event-Log Benefits:**
-- Complete audit trail
-- Foundation for learning (preference tracking)
-- Historical analysis
-- Digital Twin behavior modeling
+### 2. Classification Architecture
 
-### 3.1 Email Extraction Pattern
+The system uses TWO classification approaches:
 
-Email extraction uses **Structured Outputs** (Pydantic models as `response_format`) for type-safe LLM responses:
+#### 2.1 Ensemble Classifier (Phase 2 - DEFAULT, Recommended)
+
+All three layers run in parallel, then scores are combined with configurable weights:
+
+```python
+from agent_platform.classification import EnsembleClassifier, ScoringWeights
+
+# Default configuration
+classifier = EnsembleClassifier()
+
+# Custom weights
+custom_weights = ScoringWeights(
+    rule_weight=0.25,
+    history_weight=0.35,
+    llm_weight=0.40
+)
+classifier = EnsembleClassifier(weights=custom_weights)
+
+# Smart LLM Skip (automatically skip LLM when Rule+History agree)
+classifier = EnsembleClassifier(smart_llm_skip=True)  # ~60-70% cost savings
+
+result = await classifier.classify(email)
+```
+
+**Benefits:**
+- Parallel execution (~1-3s for all layers)
+- Agreement detection (+0.10 to +0.20 confidence boost)
+- Smart LLM skip (60-70% cost savings when Rule+History agree)
+- Disagreement tracking for learning
+- Flexible weight configuration
+
+**File:** `agent_platform/classification/ensemble_classifier.py:1`
+
+#### 2.2 Legacy Classifier (Phase 1 - Sequential, Early-Stopping)
+
+Sequential execution with early stopping at high confidence:
+
+```python
+from agent_platform.classification import LegacyClassifier
+
+classifier = LegacyClassifier()
+result = await classifier.classify(email)
+```
+
+**Early Stopping Logic:**
+- Rule Layer → if confidence ≥ 0.85, stop
+- History Layer → if confidence ≥ 0.85, stop
+- LLM Layer → always provides result
+
+**When to use Legacy:**
+- Backwards compatibility testing
+- Comparison benchmarks
+- Budget-conscious scenarios (more LLM skips, but longer sequential time)
+
+**File:** `agent_platform/classification/legacy_classifier.py:1`
+
+### 3. Email Extraction Pattern
+
+Email extraction uses **Structured Outputs** (Pydantic models) for type-safe LLM responses:
 
 ```python
 from agent_platform.extraction import ExtractionAgent
 from agent_platform.classification import EmailToClassify
 
-# Create extraction agent
 extraction_agent = ExtractionAgent()
 
-# Create email to analyze
 email = EmailToClassify(
     email_id="msg_123",
     account_id="gmail_1",
@@ -156,63 +147,21 @@ email = EmailToClassify(
 # Extract structured information
 extraction_result = await extraction_agent.extract(email)
 
-# Access extraction results
-print(f"Summary: {extraction_result.summary}")
-print(f"Main Topic: {extraction_result.main_topic}")
-print(f"Sentiment: {extraction_result.sentiment}")
-print(f"Has Action Items: {extraction_result.has_action_items}")
-
 # Access extracted tasks
 for task in extraction_result.tasks:
-    print(f"  Task: {task.description}")
-    print(f"  Deadline: {task.deadline}")
-    print(f"  Priority: {task.priority}")
-    print(f"  Requires My Action: {task.requires_action_from_me}")
-    print(f"  Context: {task.context}")
+    print(f"Task: {task.description}")
+    print(f"Deadline: {task.deadline}")
+    print(f"Priority: {task.priority}")
 
 # Access extracted decisions
 for decision in extraction_result.decisions:
-    print(f"  Decision: {decision.question}")
-    print(f"  Options: {', '.join(decision.options)}")
-    print(f"  Urgency: {decision.urgency}")
-    print(f"  Requires My Input: {decision.requires_my_input}")
+    print(f"Decision: {decision.question}")
+    print(f"Options: {', '.join(decision.options)}")
 
 # Access extracted questions
 for question in extraction_result.questions:
-    print(f"  Question: {question.question}")
-    print(f"  Requires Response: {question.requires_response}")
-    print(f"  Type: {question.question_type}")
-
-# Get summary dict
-summary = extraction_result.to_summary_dict()
-print(f"Total Items: {summary['total_items']}")
-```
-
-**Integration with Classification Pipeline:**
-
-```python
-from agent_platform.orchestration import ClassificationOrchestrator
-
-orchestrator = ClassificationOrchestrator()
-
-# Process emails (classification + extraction)
-emails = [
-    {
-        'id': 'msg_1',
-        'subject': 'Meeting Tomorrow',
-        'sender': 'colleague@company.com',
-        'body': 'Can we meet at 10am to discuss the budget?',
-    },
-    ...
-]
-
-stats = await orchestrator.process_emails(emails, 'gmail_1')
-
-# Check extraction statistics
-print(f"Emails with extractions: {stats.emails_with_extractions}")
-print(f"Tasks extracted: {stats.total_tasks_extracted}")
-print(f"Decisions extracted: {stats.total_decisions_extracted}")
-print(f"Questions extracted: {stats.total_questions_extracted}")
+    print(f"Question: {question.question}")
+    print(f"Type: {question.question_type}")
 ```
 
 **Extraction Models (agent_platform/extraction/models.py):**
@@ -226,41 +175,101 @@ print(f"Questions extracted: {stats.total_questions_extracted}")
 - **OpenAI fallback** (gpt-4o): Cloud, paid, reliable (~1s per email)
 - Automatic fallback if Ollama unavailable
 
-### 4. Multi-Account Configuration
+### 4. Orchestration Pattern
 
-Configuration uses a centralized `Config` class with per-account modes:
+The `ClassificationOrchestrator` integrates classification + extraction + routing:
 
 ```python
-from platform.core.config import Config, Mode
+from agent_platform.orchestration import ClassificationOrchestrator
 
-# Supported modes per account
-Mode.DRAFT         # Generate drafts for review (default)
-Mode.AUTO_REPLY    # Send automatically if confidence > 0.85
-Mode.MANUAL        # Classification only, no drafts
+# Default: Uses EnsembleClassifier
+orchestrator = ClassificationOrchestrator()
 
-# Setting modes
-Config.set_account_mode("gmail_1", Mode.DRAFT)
-Config.get_account_mode("gmail_1")  # Returns Mode enum
+# Or use legacy classifier
+orchestrator = ClassificationOrchestrator(use_legacy=True)
+
+# Custom ensemble weights
+from agent_platform.classification import ScoringWeights
+weights = ScoringWeights(rule_weight=0.3, history_weight=0.3, llm_weight=0.4)
+orchestrator = ClassificationOrchestrator(ensemble_weights=weights)
+
+# Process emails
+emails = [
+    {
+        'id': 'msg_1',
+        'subject': 'Meeting Tomorrow',
+        'sender': 'colleague@company.com',
+        'body': 'Can we meet at 10am to discuss the budget?',
+    }
+]
+
+stats = await orchestrator.process_emails(emails, 'gmail_1')
+
+# Stats include:
+# - total_processed, high/medium/low confidence counts
+# - by_category breakdown
+# - extraction counts (tasks, decisions, questions)
+# - timing information
 ```
 
-**Account Structure:**
-- 3 Gmail accounts: `gmail_1`, `gmail_2`, `gmail_3`
-- 1 Ionos account: `ionos`
-- 1 Backup account: `backup`
+**Confidence-Based Routing:**
+- **≥0.90**: High confidence → Auto-action (label, archive)
+- **0.65-0.90**: Medium → Add to review queue
+- **<0.65**: Low → Mark for manual review
 
-### 4. Database Schema
+**File:** `agent_platform/orchestration/classification_orchestrator.py:1`
 
-SQLAlchemy models in `platform/db/models.py`:
+### 5. Memory System
 
-**Platform Core Tables:**
-- `modules`: Registered modules
-- `agents`: Registered agents with capabilities
-- `runs`: Agent execution history
-- `steps`: Individual steps within runs
+Memory-Objects are derived from Events (Event-First principle):
 
-**Email Module Tables:**
-- `email_accounts`: Account configurations and modes
+```python
+from agent_platform.memory import MemoryService
+
+memory = MemoryService()
+
+# Save extracted task to memory
+await memory.save_task(
+    email_id="msg_123",
+    account_id="gmail_1",
+    task={
+        'description': 'Review Q4 report',
+        'deadline': '2025-11-25',
+        'priority': 'high',
+        'requires_action_from_me': True,
+    }
+)
+
+# Query active tasks
+tasks = await memory.get_active_tasks(account_id="gmail_1")
+
+# Query decisions
+decisions = await memory.get_pending_decisions(account_id="gmail_1")
+```
+
+**Memory Tables:**
+- `memory_tasks`: Extracted tasks with status tracking
+- `memory_decisions`: Extracted decisions with resolution tracking
+- `memory_questions`: Extracted questions with answer tracking
+- `journal_entries`: Daily journal summaries
+
+### 6. Database Schema
+
+SQLAlchemy models in `agent_platform/db/models.py`:
+
+**Event Tables:**
+- `events`: Immutable event log (all actions)
+
+**Memory Tables:**
+- `memory_tasks`: Tasks extracted from emails
+- `memory_decisions`: Decisions extracted from emails
+- `memory_questions`: Questions extracted from emails
+- `journal_entries`: Daily journal summaries
+
+**Email Processing Tables:**
 - `processed_emails`: Email processing history with classifications
+- `sender_preferences`: Learned preferences (EMA-based)
+- `review_queue`: Medium-confidence emails for review
 
 ## Common Development Commands
 
@@ -273,253 +282,383 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Database initialization
-python -c "from platform.db.database import init_db; init_db()"
+python migrations/run_migration.py
+
+# Verify database
+python scripts/setup/verify_db.py
 ```
 
-### Testing Email Module
+### Running Tests
 
 ```bash
-# Test classification system
-python scripts/run_classifier.py
+# Run all tests
+pytest tests/ -v
 
-# Test extraction agent
-pytest tests/extraction/test_extraction_agent.py -v
+# Run specific test suites
+pytest tests/classification/ -v          # Classification tests
+pytest tests/integration/ -v             # Integration tests
+pytest tests/extraction/ -v              # Extraction tests
+pytest tests/events/ -v                  # Event system tests
+pytest tests/memory/ -v                  # Memory system tests
 
-# Test classification + extraction pipeline (integration)
-pytest tests/integration/test_classification_extraction_pipeline.py -v
+# Run specific test file
+pytest tests/classification/test_ensemble_classifier.py -v
 
-# Test responder (draft generation)
-python scripts/run_responder.py
-
-# Interactive multi-account workflow tester
-python scripts/run_full_workflow.py
-
-# Start scheduler (automated operation)
-python scripts/run_scheduler.py
+# Run with coverage
+pytest tests/ --cov=agent_platform --cov-report=html
 ```
 
-### Gmail API OAuth Setup
+### Testing Email Classification
 
-First run of any Gmail tool opens browser for OAuth consent. Tokens cached in `tokens/gmail_account_N_token.json`.
-
-To re-authenticate an account:
 ```bash
-rm tokens/gmail_account_1_token.json
-python scripts/run_classifier.py  # Triggers OAuth flow
+# Test classification system (interactive)
+PYTHONPATH=. python scripts/operations/run_classifier.py
+
+# Analyze mailbox history (initialize sender preferences)
+PYTHONPATH=. python scripts/operations/analyze_mailbox_history.py
+
+# Test full workflow (classification + extraction)
+PYTHONPATH=. python scripts/operations/run_full_workflow.py
+```
+
+### Journal Generation
+
+```bash
+# Generate journal for today (single account)
+PYTHONPATH=. python scripts/operations/run_journal_generator.py gmail_1
+
+# Generate for specific date
+PYTHONPATH=. python scripts/operations/run_journal_generator.py gmail_1 --date 2025-11-20
+
+# Generate for all accounts
+PYTHONPATH=. python scripts/operations/run_journal_generator.py --all
+
+# Export to markdown files
+PYTHONPATH=. python scripts/operations/run_journal_generator.py gmail_1 --export
+
+# Custom output directory
+PYTHONPATH=. python scripts/operations/run_journal_generator.py gmail_1 --export --output-dir ./my_journals
+```
+
+### Scheduler (Automated Operations)
+
+```bash
+# Run scheduler for automated operations
+PYTHONPATH=. python scripts/operations/run_scheduler.py
+
+# Scheduled jobs:
+# - Inbox check: Every 1 hour (configurable)
+# - Monthly backup: Day 1 at 3 AM (configurable)
+# - Journal generation: Daily at 8 PM (configurable)
+# - Spam cleanup: Daily at 2 AM
 ```
 
 ## Critical Implementation Details
 
-### Email Tool Abstraction
+### Ensemble vs Legacy Classifier
 
-Two email service implementations with unified interface:
+**When to use Ensemble (DEFAULT):**
+- Production scenarios (parallel execution, better confidence)
+- When you need agreement detection
+- When you want flexible weight configuration
+- When you want smart LLM skip with cost savings
 
-**Gmail (`modules/email/tools/gmail_tools.py`):**
-- Uses Gmail API with OAuth2
-- Methods: `fetch_unread_emails()`, `create_draft()`, `apply_label()`, `archive_email()`, `send_email()`
-- Service instances cached in `_gmail_services` dict to avoid re-authentication
+**When to use Legacy:**
+- Backwards compatibility testing
+- Budget-conscious scenarios (more aggressive LLM skipping)
+- Comparison benchmarks
 
-**Ionos (`modules/email/tools/ionos_tools.py`):**
-- Uses IMAP for fetch, SMTP for send
-- IMAP connection to fetch emails, APPEND to Drafts folder for drafts
-
-### Orchestrator Mode Routing
-
-The `EmailOrchestrator` in `modules/email/agents/orchestrator.py` routes based on mode:
-
-```python
-# Mode-based workflow
-if mode == Mode.MANUAL:
-    # Classify + label only
-
-elif mode == Mode.DRAFT:
-    # Classify + generate draft + save to Drafts folder
-
-elif mode == Mode.AUTO_REPLY:
-    if response.confidence_score >= Config.RESPONDER_CONFIDENCE_THRESHOLD:
-        # Send email directly
-    else:
-        # Fall back to draft mode
+**Performance Comparison:**
+```
+Ensemble: ~1-3s (all layers parallel), higher confidence
+Legacy:   ~0.5-3s (early stopping), variable time
 ```
 
-### Scheduler Configuration
+### LLM Provider Configuration
 
-APScheduler jobs in `scripts/run_scheduler.py`:
-
-1. **Inbox Check:** Runs every `INBOX_CHECK_INTERVAL_HOURS` (default: 1 hour)
-2. **Monthly Backup:** Runs on day `BACKUP_DAY_OF_MONTH` at `BACKUP_HOUR` (default: day 1 at 3 AM)
-3. **Spam Cleanup:** Daily at 2 AM (placeholder, not fully implemented)
-
-### Guardrails Tripwire Mechanism
-
-Guardrails use a tripwire pattern to halt dangerous operations:
+Two providers with automatic fallback:
 
 ```python
-@input_guardrail
-async def check_pii_in_email(ctx, agent, message):
-    result = await Runner.run(pii_agent, message)
+from agent_platform.llm import get_llm_client
 
-    return GuardrailFunctionOutput(
-        output_info={'pii_detected': result.contains_pii},
-        tripwire_triggered=not result.safe  # STOPS execution if True
-    )
+# Automatically selects Ollama (primary) or OpenAI (fallback)
+client = get_llm_client()
+
+# Force specific provider
+client = get_llm_client(provider="openai")
+client = get_llm_client(provider="ollama")
 ```
 
-When `tripwire_triggered=True`, agent execution halts immediately.
-
-## Adding New Modules
-
-To add a new module (e.g., Calendar):
-
-1. **Create module structure:**
-   ```
-   modules/calendar/
-   ├── __init__.py
-   ├── module.py              # Registration logic
-   ├── agents/
-   │   ├── __init__.py
-   │   ├── scheduler.py       # Calendar scheduling agent
-   │   └── reminder.py        # Reminder agent
-   ├── tools/
-   │   └── gcal_tools.py      # Google Calendar API
-   └── guardrails/
-       └── calendar_guardrails.py
-   ```
-
-2. **Create registration function in `module.py`:**
-   ```python
-   def register_calendar_module():
-       registry = get_registry()
-       registry.register_module(name="calendar", version="1.0.0", ...)
-
-       scheduler_agent = create_scheduler_agent()
-       registry.register_agent(
-           module_name="calendar",
-           agent_name="scheduler",
-           agent_instance=scheduler_agent,
-           capabilities=["meeting_scheduling", "availability_check"]
-       )
-   ```
-
-3. **Initialize in scripts:**
-   ```python
-   from modules.calendar.module import register_calendar_module
-
-   register_email_module()
-   register_calendar_module()
-   ```
-
-## Environment Configuration
-
-Critical `.env` variables:
-
+**Environment Variables:**
 ```env
-# Required
 OPENAI_API_KEY=sk-proj-...
+OPENAI_MODEL=gpt-4o
 
-# Gmail accounts (OAuth)
-GMAIL_1_EMAIL=user@gmail.com
-GMAIL_1_CREDENTIALS_PATH=credentials/gmail_account_1.json
-GMAIL_1_TOKEN_PATH=tokens/gmail_account_1_token.json
-
-# Ionos account (IMAP/SMTP)
-IONOS_EMAIL=user@ionos.de
-IONOS_PASSWORD=yourpassword
-IONOS_IMAP_SERVER=imap.ionos.de
-IONOS_SMTP_SERVER=smtp.ionos.de
-
-# Backup account (Gmail)
-BACKUP_EMAIL=backup@gmail.com
-BACKUP_CREDENTIALS_PATH=credentials/backup_account.json
-
-# Mode configuration
-DEFAULT_MODE=draft  # draft, auto_reply, manual
-
-# Scheduler
-INBOX_CHECK_INTERVAL_HOURS=1
-BACKUP_DAY_OF_MONTH=1
-BACKUP_HOUR=3
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=qwen2.5:7b
 ```
+
+### Confidence Thresholds
+
+Configuration in `ClassificationOrchestrator`:
+
+```python
+# Phase 2 (Ensemble) - Higher thresholds due to better confidence
+HIGH_CONFIDENCE_THRESHOLD = 0.90   # Auto-action
+MEDIUM_CONFIDENCE_THRESHOLD = 0.65  # Review queue
+
+# Phase 1 (Legacy) - Lower thresholds
+HIGH_CONFIDENCE_THRESHOLD = 0.85
+MEDIUM_CONFIDENCE_THRESHOLD = 0.60
+```
+
+### Learning System (EMA)
+
+The system learns from user actions using Exponential Moving Average:
+
+```python
+# Learning rate: 15% new, 85% history
+new_importance = 0.15 * action_importance + 0.85 * old_importance
+
+# Example:
+# Old: importance = 0.60
+# User replies (action_importance = 0.85)
+# New: 0.15 * 0.85 + 0.85 * 0.60 = 0.6375
+```
+
+**Tracked Actions:**
+- Reply → High importance (0.85)
+- Archive → Medium importance (0.5)
+- Delete → Low importance (0.2)
+- Star → Very high importance (0.95)
+
+**File:** `agent_platform/feedback/tracker.py:1`
+
+### Journal Generation
+
+Daily journals are generated from events and memory-objects:
+
+```python
+from agent_platform.journal import JournalGenerator
+from datetime import datetime
+
+generator = JournalGenerator()
+
+# Generate journal for specific day
+journal = await generator.generate_daily_journal(
+    account_id="gmail_1",
+    date=datetime(2025, 11, 20)
+)
+
+# Export to markdown file
+filepath = generator.export_to_file(
+    journal_entry=journal,
+    account_id="gmail_1",
+    output_dir="journals"  # Creates journals/gmail_1/2025-11-20.md
+)
+
+# Journal includes:
+# - Email summary (counts by category)
+# - Extracted tasks (with priorities)
+# - Pending decisions
+# - Unanswered questions
+# - Top senders
+# - Important items (high-priority tasks, urgent decisions/questions)
+```
+
+**Output Format:** Markdown with structured sections (see `docs/journal_format.md`)
+
+**File Structure:**
+```
+journals/
+├── gmail_1/
+│   ├── 2025-11-20.md
+│   └── 2025-11-21.md
+├── gmail_2/
+│   └── 2025-11-20.md
+└── gmail_3/
+    └── 2025-11-20.md
+```
+
+**Scheduled Generation:**
+- Automatic: Daily at 8 PM (configurable via `JOURNAL_GENERATION_HOUR`)
+- Manual: Use `scripts/operations/run_journal_generator.py`
+- Idempotent: Generating twice for same date returns same journal
+
+**File:** `agent_platform/journal/generator.py:1`
 
 ## Database Access Patterns
 
 Use context manager for database sessions:
 
 ```python
-from platform.db.database import get_db
-from platform.db.models import ProcessedEmail
+from agent_platform.db.database import get_db
+from agent_platform.db.models import ProcessedEmail
 
 with get_db() as db:
     email_record = ProcessedEmail(
         account_id="gmail_1",
         email_id="msg_123",
-        category="important",
+        category="wichtig",
         confidence=0.92
     )
     db.add(email_record)
     # Commit happens automatically on exit
 ```
 
-## Agent Discovery
-
-Use registry to discover agents by capability:
-
-```python
-from platform.core.registry import get_registry
-
-registry = get_registry()
-
-# Find all agents with spam detection capability
-spam_detectors = registry.discover_agents("spam_detection")
-# Returns: ["email.classifier"]
-
-# Get specific agent
-classifier = registry.get_agent("email.classifier")
-```
-
 ## Async Execution Patterns
 
-All agent runs and email operations use async/await:
+All operations use async/await:
 
 ```python
-from agents import Runner
+import asyncio
 
-# Single agent run
-result = await Runner.run(classifier_agent, email_content)
+# Parallel execution
+results = await asyncio.gather(
+    classify_email(email1, classifier),
+    classify_email(email2, classifier),
+    classify_email(email3, classifier),
+)
 
-# Parallel batch processing
-tasks = [
-    classify_email(email, classifier)
-    for email in emails
-]
-results = await asyncio.gather(*tasks)
-
-# Sequential processing with delays (for rate limiting)
-for account_id in accounts:
-    result = await process_account(account_id)
-    await asyncio.sleep(2)  # Delay between accounts
+# Sequential with delays (rate limiting)
+for email in emails:
+    result = await process_email(email)
+    await asyncio.sleep(0.5)
 ```
 
 ## Common Pitfalls
 
-1. **Gmail API Rate Limits:** Add delays between batch operations using `await asyncio.sleep(0.5)`
+1. **Ensemble vs Legacy:** Always use `EnsembleClassifier` for new code unless specifically testing legacy behavior
 
-2. **Token Expiration:** Gmail tokens auto-refresh, but if corrupted, delete token files and re-authenticate
+2. **Event Logging:** ALWAYS log events after actions. Missing event logs break the Digital Twin architecture.
 
-3. **Mode Configuration:** Always use `Config.get_account_mode(account_id)` instead of accessing `Config.ACCOUNT_MODES` directly (provides defaults)
+3. **Database Sessions:** Always use `with get_db() as db:` pattern, never create sessions manually
 
-4. **Database Sessions:** Always use `with get_db() as db:` pattern, never create sessions manually
+4. **Pydantic Models:** When defining structured outputs, use Field descriptions - they're included in LLM prompts
 
-5. **Agent Registration:** Register modules before registering agents, otherwise module validation fails
+5. **Smart LLM Skip:** Only works with `EnsembleClassifier(smart_llm_skip=True)`, not with legacy classifier
 
-6. **Pydantic Models:** When defining structured outputs, use Field descriptions - they're included in LLM prompts
+6. **Async/Await:** All classification and extraction operations are async. Don't forget `await`.
 
 ## Testing Strategy
 
-Manual testing via scripts:
-- `run_classifier.py`: Test single agent
-- `run_responder.py`: Test agent orchestration
-- `run_full_workflow.py`: Test complete workflows with all modes
-- `run_scheduler.py`: Test scheduled execution
+**Unit Tests:**
+- Test individual layers (Rule, History, LLM)
+- Test ensemble combining logic
+- Test extraction agent
+- Test event logging
 
-Unit tests not yet implemented (planned in `tests/` directory).
+**Integration Tests:**
+- Test classification + extraction pipeline
+- Test orchestrator workflow
+- Test ensemble vs legacy comparison
+- Test journal generation
+
+**E2E Tests:**
+- Test with real Gmail API
+- Test complete workflows
+
+**File Locations:**
+- `tests/classification/` - Classification unit tests
+- `tests/integration/` - Integration tests
+- `tests/extraction/` - Extraction tests
+- `tests/events/` - Event system tests
+- `tests/memory/` - Memory system tests
+
+## Code Quality Guidelines
+
+1. **Type Hints:** Use type hints for all function parameters and return values
+2. **Pydantic Models:** Use Pydantic models for all data structures
+3. **Event Logging:** Log events for all state changes
+4. **Error Handling:** Use try-except with specific exceptions
+5. **Testing:** Write tests for all new features (unit + integration)
+6. **Documentation:** Update docstrings and CLAUDE.md for architectural changes
+
+## Environment Variables
+
+Critical `.env` variables:
+
+```env
+# LLM Providers
+OPENAI_API_KEY=sk-proj-...
+OPENAI_MODEL=gpt-4o
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=qwen2.5:7b
+
+# Classification Thresholds
+IMPORTANCE_CONFIDENCE_HIGH_THRESHOLD=0.85
+IMPORTANCE_CONFIDENCE_MEDIUM_THRESHOLD=0.6
+
+# Scheduler Settings
+INBOX_CHECK_INTERVAL_HOURS=1
+BACKUP_DAY_OF_MONTH=1
+BACKUP_HOUR=3
+JOURNAL_GENERATION_HOUR=20  # 8 PM (24-hour format)
+
+# Database
+DATABASE_URL=sqlite:///platform.db
+```
+
+## Project Structure
+
+```
+agent_platform/
+├── classification/           # Phase 1-2 Classification System
+│   ├── ensemble_classifier.py    # Phase 2: Parallel 3-layer
+│   ├── legacy_classifier.py      # Phase 1: Early-stopping
+│   ├── importance_rules.py       # Rule Layer
+│   ├── importance_history.py     # History Layer (EMA)
+│   ├── importance_llm.py         # LLM Layer
+│   └── models.py                 # Pydantic models
+│
+├── extraction/               # Email Extraction System
+│   ├── extraction_agent.py       # Main extraction agent
+│   ├── models.py                 # Task/Decision/Question models
+│   └── prompts.py                # LLM prompts
+│
+├── events/                   # Event-Log System
+│   ├── event_types.py            # Event type enums
+│   └── event_service.py          # Event logging API
+│
+├── memory/                   # Memory-Objects System
+│   ├── memory_service.py         # Memory CRUD operations
+│   └── models.py                 # Memory object models
+│
+├── journal/                  # Journal Generation
+│   └── generator.py              # Daily journal generator
+│
+├── orchestration/            # Workflow Orchestration
+│   └── classification_orchestrator.py  # Main orchestrator
+│
+├── feedback/                 # Learning System
+│   ├── tracker.py                # Feedback tracking (EMA)
+│   └── checker.py                # Background checker
+│
+├── review/                   # Review Queue System
+│   ├── queue_manager.py          # Queue management
+│   └── digest_generator.py       # Daily digest
+│
+├── llm/                      # LLM Provider Abstraction
+│   └── providers.py              # Ollama + OpenAI
+│
+├── db/                       # Database Layer
+│   ├── models.py                 # SQLAlchemy models
+│   └── database.py               # Session management
+│
+└── core/                     # Core Configuration
+    └── config.py                 # Configuration constants
+
+tests/                        # 80+ test functions
+├── classification/           # Classification tests
+├── integration/              # Integration tests
+├── extraction/               # Extraction tests
+├── events/                   # Event system tests
+└── memory/                   # Memory system tests
+```
+
+## Next Steps (Post-Phase 2)
+
+See [PROJECT_SCOPE.md](PROJECT_SCOPE.md) and [docs/VISION.md](docs/VISION.md) for:
+- Phase 3: Twin Core (Proactive suggestions)
+- Phase 4: Additional modules (Calendar, Finance, etc.)
+- Phase 5: Cross-domain intelligence

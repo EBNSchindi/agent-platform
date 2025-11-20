@@ -8,6 +8,7 @@ Generates markdown summaries for daily review.
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
+from pathlib import Path
 
 from agent_platform.events import get_events, EventType
 from agent_platform.memory import (
@@ -435,6 +436,67 @@ class JournalGenerator:
             summary_parts.append(f"{len(highlights['important_items'])} important items requiring attention")
 
         return ", ".join(summary_parts) + "."
+
+    def export_to_file(
+        self,
+        journal_entry: JournalEntry,
+        account_id: str,
+        output_dir: str = 'journals'
+    ) -> Path:
+        """
+        Export journal to markdown file.
+
+        Args:
+            journal_entry: JournalEntry object to export
+            account_id: Account ID (for directory structure)
+            output_dir: Base directory for exports (default: 'journals/')
+
+        Returns:
+            Path to exported file
+
+        Example:
+            >>> generator = JournalGenerator()
+            >>> journal = await generator.generate_daily_journal('gmail_1')
+            >>> filepath = generator.export_to_file(journal, 'gmail_1')
+            >>> print(f"Exported to: {filepath}")
+            Exported to: journals/gmail_1/2025-11-20.md
+        """
+        # Create directory structure: journals/{account_id}/
+        account_dir = Path(output_dir) / account_id
+        account_dir.mkdir(parents=True, exist_ok=True)
+
+        # Format filename: YYYY-MM-DD.md
+        date_str = journal_entry.date.strftime('%Y-%m-%d')
+        filename = f"{date_str}.md"
+        filepath = account_dir / filename
+
+        # Write markdown content
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(journal_entry.content_markdown)
+
+            self.logger.info(
+                f"Exported journal to file",
+                extra={
+                    'account_id': account_id,
+                    'date': date_str,
+                    'filepath': str(filepath),
+                    'journal_id': journal_entry.journal_id
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(
+                f"Failed to export journal: {str(e)}",
+                extra={
+                    'account_id': account_id,
+                    'date': date_str,
+                    'filepath': str(filepath)
+                }
+            )
+            raise
+
+        return filepath
 
 
 # ============================================================================

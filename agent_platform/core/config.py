@@ -65,6 +65,12 @@ class Config:
     CLASSIFIER_BATCH_SIZE: int = int(os.getenv("CLASSIFIER_BATCH_SIZE", "10"))
     RESPONDER_CONFIDENCE_THRESHOLD: float = float(os.getenv("RESPONDER_CONFIDENCE_THRESHOLD", "0.85"))
 
+    # Scheduler Settings
+    INBOX_CHECK_INTERVAL_HOURS: int = int(os.getenv("INBOX_CHECK_INTERVAL_HOURS", "1"))
+    BACKUP_DAY_OF_MONTH: int = int(os.getenv("BACKUP_DAY_OF_MONTH", "1"))
+    BACKUP_HOUR: int = int(os.getenv("BACKUP_HOUR", "3"))
+    JOURNAL_GENERATION_HOUR: int = int(os.getenv("JOURNAL_GENERATION_HOUR", "20"))  # 8 PM
+
     # Gmail Accounts
     GMAIL_ACCOUNTS = {
         "gmail_1": {
