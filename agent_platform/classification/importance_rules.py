@@ -209,7 +209,7 @@ class RuleLayer:
                 )
 
         # ====================================================================
-        # CHECK 2: AUTO-REPLY DETECTION (Confidence: 0.90)
+        # CHECK 2: AUTO-REPLY DETECTION (Confidence: 0.70 - lowered for learning)
         # ====================================================================
 
         auto_reply_score, auto_matches = self._check_auto_reply_patterns(email, text)
@@ -217,20 +217,20 @@ class RuleLayer:
             auto_reply_signals.extend(auto_matches)
             matched_rules.append("auto_reply_detection")
 
-            if auto_reply_score >= 2:  # High confidence auto-reply
+            if auto_reply_score >= 2:  # Likely auto-reply
                 return RuleLayerResult(
                     matched_rules=matched_rules,
                     importance=0.1,
-                    confidence=0.90,
+                    confidence=0.70,  # ❗ LOWERED from 0.90 → more emails to History/LLM
                     category="system_notifications",
-                    reasoning=f"Auto-reply detected: {', '.join(auto_matches)}",
+                    reasoning=f"Likely auto-reply (check history): {', '.join(auto_matches)}",
                     spam_signals=spam_signals,
                     auto_reply_signals=auto_reply_signals,
                     newsletter_signals=[],
                 )
 
         # ====================================================================
-        # CHECK 3: NEWSLETTER DETECTION (Confidence: 0.85)
+        # CHECK 3: NEWSLETTER DETECTION (Confidence: 0.65 - lowered for learning)
         # ====================================================================
 
         newsletter_score, newsletter_matches = self._check_newsletter_patterns(email, text)
@@ -238,32 +238,32 @@ class RuleLayer:
             newsletter_signals.extend(newsletter_matches)
             matched_rules.append("newsletter_detection")
 
-            if newsletter_score >= 2:  # High confidence newsletter
+            if newsletter_score >= 2:  # Likely newsletter
                 return RuleLayerResult(
                     matched_rules=matched_rules,
                     importance=0.3,
-                    confidence=0.85,
+                    confidence=0.65,  # ❗ LOWERED from 0.85 → History can override
                     category="newsletter",
-                    reasoning=f"Newsletter detected: {', '.join(newsletter_matches[:2])}",
+                    reasoning=f"Likely newsletter (check preferences): {', '.join(newsletter_matches[:2])}",
                     spam_signals=spam_signals,
                     auto_reply_signals=auto_reply_signals,
                     newsletter_signals=newsletter_signals,
                 )
 
         # ====================================================================
-        # CHECK 4: SYSTEM NOTIFICATION (Confidence: 0.80)
+        # CHECK 4: SYSTEM NOTIFICATION (Confidence: 0.50 - very low, let LLM decide)
         # ====================================================================
 
         system_score, system_matches = self._check_system_notification_patterns(email, text)
-        if system_score >= 2:  # High confidence system notification
+        if system_score >= 2:  # Possible system notification
             matched_rules.append("system_notification")
 
             return RuleLayerResult(
                 matched_rules=matched_rules,
                 importance=0.4,
-                confidence=0.80,
+                confidence=0.50,  # ❗ LOWERED from 0.80 → LLM/History decides importance
                 category="system_notifications",
-                reasoning=f"System notification: {', '.join(system_matches[:2])}",
+                reasoning=f"Possible system notification (pass to LLM): {', '.join(system_matches[:2])}",
                 spam_signals=spam_signals,
                 auto_reply_signals=auto_reply_signals,
                 newsletter_signals=newsletter_signals,

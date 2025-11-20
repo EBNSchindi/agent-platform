@@ -1,7 +1,7 @@
 # Project Scope: Digital Twin Email Platform
 
-**Version:** 2.0.0
-**Status:** Phase 1 in Entwicklung (Event-Log System ✅ Complete)
+**Version:** 2.1.0
+**Status:** Phase 1 in Entwicklung (Email Extraction ✅ Complete)
 **Letztes Update:** 2025-11-20
 **Autor:** Daniel Schindler
 
@@ -41,7 +41,7 @@ Die **Digital Twin Email Platform** ist ein intelligentes Email-Management-Syste
 **Aktueller Fokus (Phase 1):**
 - ✅ Event-Log System (Foundation für Learning & Digital Twin)
 - ✅ Email Importance Classification (3-Layer: Rules → History → LLM)
-- 🚧 Email Extraction (Tasks, Decisions, Questions)
+- ✅ Email Extraction (Tasks, Decisions, Questions)
 - 🚧 Memory-Objects (abgeleitete Strukturen aus Events)
 - 🚧 Daily Journal Generation
 
@@ -73,7 +73,20 @@ Die **Digital Twin Email Platform** ist ein intelligentes Email-Management-Syste
 **Code**: `agent_platform/events/` (3 Module, ~700 Zeilen, 10/10 Tests ✅)
 **Docs**: [docs/phases/PHASE_1_STEP_1_COMPLETE.md](docs/phases/PHASE_1_STEP_1_COMPLETE.md)
 
-#### 3. Feedback & Learning System
+#### 3. Email Extraction System (Tasks, Decisions, Questions)
+- **Structured Outputs**: Pydantic models für Tasks, Decisions, Questions, Summary
+- **LLM Integration**: Ollama-first (qwen2.5:7b) + OpenAI Fallback (gpt-4o)
+- **Event-Logging**: EMAIL_ANALYZED, TASK_EXTRACTED, DECISION_EXTRACTED, QUESTION_EXTRACTED
+- **Pipeline Integration**: Automatische Extraction nach Classification
+- **Extraction Types**:
+  - Tasks: Aufgaben mit Deadline, Priority, Assignee
+  - Decisions: Entscheidungen mit Optionen, Urgency, Recommendation
+  - Questions: Fragen mit Context, Response-Requirement
+
+**Code**: `agent_platform/extraction/` (3 Module, ~550 Zeilen, 8/8 Tests ✅)
+**Docs**: [docs/phases/PHASE_1_STEP_2_COMPLETE.md](docs/phases/PHASE_1_STEP_2_COMPLETE.md)
+
+#### 4. Feedback & Learning System
 - **Sender/Domain Preferences**: Lernt aus User-Actions (reply, archive, delete, star)
 - **Review Queue**: Medium-confidence Emails zur User-Review
 - **Daily Digest**: HTML Email mit Action Buttons
@@ -81,7 +94,7 @@ Die **Digital Twin Email Platform** ist ein intelligentes Email-Management-Syste
 
 **Code**: `agent_platform/feedback/`, `agent_platform/review/` (4 Module, ~1,200 Zeilen)
 
-#### 4. Database & Persistence
+#### 5. Database & Persistence
 - **SQLAlchemy Models**: 10+ Tabellen (Events, ProcessedEmails, SenderPreferences, etc.)
 - **Migrations**: SQL-basiert mit run_migration.py
 - **Schema**: Optimiert für Event-First Architecture
@@ -90,21 +103,16 @@ Die **Digital Twin Email Platform** ist ein intelligentes Email-Management-Syste
 
 ### 🚧 In Arbeit (Next Steps aus Phase 1)
 
-#### 1. Erweiterte E-Mail-Analyse (Extraktion) - **NEXT**
-- [ ] ExtractionAgent: Task, Decision, Question extraction
-- [ ] Zusammenfassung generation
-- [ ] Event-Logging: TASK_EXTRACTED, DECISION_EXTRACTED, QUESTION_EXTRACTED
-
-#### 2. Memory-Objects erweitern
+#### 1. Memory-Objects erweitern - **NEXT**
 - [ ] Database Models: Task, Decision, Question, JournalEntry
 - [ ] Abgeleitet aus Events (Event-First Principle)
 
-#### 3. Tagesjournal-Generierung
+#### 2. Tagesjournal-Generierung
 - [ ] Journal-Generator Agent
 - [ ] Markdown Export
 - [ ] Event-Logging: JOURNAL_GENERATED
 
-#### 4. HITL Feedback-Interface
+#### 3. HITL Feedback-Interface
 - [ ] Simple Web-UI für Corrections
 - [ ] Event-Logging: USER_FEEDBACK, USER_CORRECTION
 
@@ -203,22 +211,25 @@ Siehe [CLAUDE.md](CLAUDE.md) für alle Development Commands und Patterns.
 📁 agent_platform/ (Main Package)
    ├── classification/      ~2,300 Zeilen (3-Layer Classifier)
    ├── events/              ~700 Zeilen (Event-Log System)
+   ├── extraction/          ~550 Zeilen (Email Extraction)
    ├── feedback/            ~800 Zeilen (Learning & Feedback)
    ├── review/              ~400 Zeilen (Review Queue & Digest)
+   ├── orchestration/       ~420 Zeilen (Classification + Extraction Pipeline)
    ├── db/                  ~600 Zeilen (Models & Database)
    ├── llm/                 ~300 Zeilen (Ollama + OpenAI)
    └── monitoring.py        ~360 Zeilen (Logging & Metrics)
 
-   TOTAL: ~5,460 Zeilen Production Code
+   TOTAL: ~6,430 Zeilen Production Code
 
 📁 tests/
    ├── classification/      ~900 Zeilen (23 Tests)
    ├── events/              ~400 Zeilen (10 Tests)
+   ├── extraction/          ~350 Zeilen (7 Tests)
    ├── feedback/            ~300 Zeilen (8 Tests)
-   └── integration/         ~200 Zeilen (5 Tests)
+   └── integration/         ~300 Zeilen (6 Tests)
 
-   TOTAL: ~1,800 Zeilen Test Code
-   TEST COVERAGE: 46/46 Tests passing (100%) ✅
+   TOTAL: ~2,250 Zeilen Test Code
+   TEST COVERAGE: 54/54 Tests passing (100%) ✅
 
 📁 docs/
    ├── VISION.md            ~1,000 Zeilen (Big Picture)
@@ -237,11 +248,11 @@ Siehe [CLAUDE.md](CLAUDE.md) für alle Development Commands und Patterns.
 
 - ✅ **Week 1-2**: Email Classification System (COMPLETE)
 - ✅ **Week 3**: Event-Log System (COMPLETE)
-- 🚧 **Week 4**: Email Extraction (Tasks, Decisions, Questions)
+- ✅ **Week 4**: Email Extraction (Tasks, Decisions, Questions) (COMPLETE)
 - 🚧 **Week 5**: Memory-Objects & Journal
 - 🚧 **Week 6**: HITL Feedback Interface
 
-**Status**: 40% Complete (2/5 Steps)
+**Status**: 60% Complete (3/5 Steps)
 
 ### Phase 2-5: Siehe [docs/VISION.md](docs/VISION.md)
 
@@ -269,13 +280,13 @@ Details: [CLAUDE.md](CLAUDE.md)
 ### MVP Kriterien
 - ✅ Event-Log System produktionsreif
 - ✅ Email Classification >85% Accuracy nach 2 Wochen Learning
-- 🚧 Task/Decision/Question Extraction funktional
+- ✅ Task/Decision/Question Extraction funktional
 - 🚧 Daily Journal generiert
 - 🚧 HITL Feedback-Interface funktional
 - 🚧 Alle Tests passing (>90% Coverage)
 - 🚧 Deployment Guide vollständig
 
-**Current Progress**: 2/7 Kriterien erfüllt (29%)
+**Current Progress**: 3/7 Kriterien erfüllt (43%)
 
 ---
 
@@ -284,6 +295,7 @@ Details: [CLAUDE.md](CLAUDE.md)
 - **Vision & Roadmap**: [docs/VISION.md](docs/VISION.md)
 - **Phase 1 Scope**: [docs/phases/PHASE_1_SCOPE.md](docs/phases/PHASE_1_SCOPE.md)
 - **Event-Log System**: [docs/phases/PHASE_1_STEP_1_COMPLETE.md](docs/phases/PHASE_1_STEP_1_COMPLETE.md)
+- **Email Extraction**: [docs/phases/PHASE_1_STEP_2_COMPLETE.md](docs/phases/PHASE_1_STEP_2_COMPLETE.md)
 - **Technical Patterns**: [CLAUDE.md](CLAUDE.md)
 - **Setup Guide**: [docs/setup/DEPLOYMENT.md](docs/setup/DEPLOYMENT.md)
 
@@ -307,12 +319,13 @@ Privates Projekt - Keine öffentliche Lizenz
 
 | Version | Datum | Meilenstein |
 |---------|-------|-------------|
+| 2.1.0 | 2025-11-20 | Email Extraction System Complete (PR #7) |
 | 2.0.0 | 2025-11-20 | Event-Log System Complete, Digital Twin Architecture |
 | 1.0.0 | 2025-11-19 | Email Classification System Complete (3-Layer) |
 | 0.1.0 | 2025-11-15 | Projekt-Setup, Initial Classifier |
 
 ---
 
-**Status**: 🚧 Phase 1 in Development (2/5 Steps Complete)
+**Status**: 🚧 Phase 1 in Development (3/5 Steps Complete)
 **Letztes Update**: 2025-11-20
-**Nächster Meilenstein**: Email Extraction Agent (ETA: Week 4)
+**Nächster Meilenstein**: Memory-Objects & Journal Generation (ETA: Week 5)
