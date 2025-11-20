@@ -224,19 +224,25 @@ class ExtractionAgent:
         self,
         email: EmailToClassify,
         processed_email_id: Optional[int] = None,
+        storage_level: str = 'full',
         force_openai: bool = False,
     ) -> EmailExtraction:
         """
-        Extract structured information from email AND persist to database.
+        Extract structured information from email AND persist to database (conditional based on storage_level).
 
         This method:
-        1. Extracts tasks/decisions/questions using LLM
+        1. Extracts tasks/decisions/questions using LLM (conditional based on storage_level)
         2. Persists extracted items to Memory-Objects (Tasks, Decisions, Questions tables)
         3. Links memory objects to extraction events
+        4. Saves summary to ProcessedEmail
 
         Args:
             email: Email to analyze
             processed_email_id: Optional FK to ProcessedEmail record
+            storage_level: Storage level ('full', 'summary', 'minimal')
+                - 'full': Extract everything (tasks, decisions, questions, summary)
+                - 'summary': Extract only summary (skip tasks/decisions/questions)
+                - 'minimal': Skip extraction entirely (return empty result)
             force_openai: If True, skip Ollama and use OpenAI directly
 
         Returns:
@@ -244,24 +250,54 @@ class ExtractionAgent:
 
         Example:
             agent = ExtractionAgent()
-            result = await agent.extract_and_persist(email, processed_email_id=123)
+            result = await agent.extract_and_persist(email, processed_email_id=123, storage_level='full')
 
             print(f"Summary: {result.summary}")
             print(f"Created {result.task_count} tasks in database")
         """
+        # Skip extraction for minimal storage
+        if storage_level == 'minimal':
+            return EmailExtraction(
+                summary="Minimal storage - no extraction performed",
+                main_topic="N/A",
+                sentiment="neutral",
+                has_action_items=False,
+                tasks=[],
+                decisions=[],
+                questions=[]
+            )
+
         # 1. Extract information from email
         extraction_result = await self.extract(email, force_openai=force_openai)
 
-        # 2. Persist extracted items to database
-        try:
-            self._persist_extraction_to_database(
-                email=email,
-                extraction=extraction_result,
-                processed_email_id=processed_email_id,
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to persist extraction to database: {e}")
-            # Don't fail the extraction if persistence fails
+        # 2. Save summary to ProcessedEmail
+        if processed_email_id:
+            try:
+                from agent_platform.db.database import get_db
+                from agent_platform.db.models import ProcessedEmail
+
+                with get_db() as db:
+                    processed_email = db.query(ProcessedEmail).filter(
+                        ProcessedEmail.id == processed_email_id
+                    ).first()
+
+                    if processed_email:
+                        processed_email.summary = extraction_result.summary
+                        db.commit()
+            except Exception as e:
+                self.logger.warning(f"Failed to save summary to ProcessedEmail: {e}")
+
+        # 3. Persist extracted items to database (only if storage_level = 'full')
+        if storage_level == 'full':
+            try:
+                self._persist_extraction_to_database(
+                    email=email,
+                    extraction=extraction_result,
+                    processed_email_id=processed_email_id,
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to persist extraction to database: {e}")
+                # Don't fail the extraction if persistence fails
 
         return extraction_result
 

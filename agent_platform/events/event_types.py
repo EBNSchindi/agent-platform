@@ -52,6 +52,16 @@ class EventType(str, Enum):
     QUESTION_EXTRACTED = "QUESTION_EXTRACTED"
     """Question was extracted from email"""
 
+    # Gmail Actions (Phase 2)
+    GMAIL_LABEL_APPLIED = "GMAIL_LABEL_APPLIED"
+    """Gmail label was applied to email"""
+
+    GMAIL_ARCHIVED = "GMAIL_ARCHIVED"
+    """Email was archived in Gmail"""
+
+    GMAIL_MARKED_READ = "GMAIL_MARKED_READ"
+    """Email was marked as read in Gmail"""
+
     # ========================================================================
     # USER INTERACTION EVENTS (Phase 1 - HITL)
     # ========================================================================
@@ -155,6 +165,12 @@ EXTRACTION_EVENTS = {
     EventType.QUESTION_EXTRACTED,
 }
 
+GMAIL_ACTION_EVENTS = {
+    EventType.GMAIL_LABEL_APPLIED,
+    EventType.GMAIL_ARCHIVED,
+    EventType.GMAIL_MARKED_READ,
+}
+
 USER_INTERACTION_EVENTS = {
     EventType.USER_FEEDBACK,
     EventType.USER_CORRECTION,
@@ -193,6 +209,7 @@ SYSTEM_EVENTS = {
 PHASE_1_EVENTS = (
     EMAIL_EVENTS
     | EXTRACTION_EVENTS
+    | GMAIL_ACTION_EVENTS
     | USER_INTERACTION_EVENTS
     | {EventType.JOURNAL_GENERATED, EventType.JOURNAL_REVIEWED}
 )
