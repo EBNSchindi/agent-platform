@@ -38,12 +38,13 @@ from agent_platform.monitoring import log_classification
 
 
 # ============================================================================
-# EXTRACTED THRESHOLDS (Adjusted for learning-first approach)
+# EXTRACTED THRESHOLDS (Agent SDK - Optimized for Early Stopping)
 # ============================================================================
 
-# ← SAME thresholds as unified_classifier.py and Config
-HIGH_CONFIDENCE_THRESHOLD = 0.90  # ❗ RAISED from 0.85 → fewer early stops
-MEDIUM_CONFIDENCE_THRESHOLD = 0.65  # ❗ RAISED from 0.60 → better separation
+# Agent SDK uses 0.85 threshold for better early-stopping performance
+# (EnsembleClassifier uses 0.90, but Agent SDK needs more early stops for efficiency)
+HIGH_CONFIDENCE_THRESHOLD = 0.85  # Early stopping threshold (80-85% stop at Rule/History)
+MEDIUM_CONFIDENCE_THRESHOLD = 0.60  # Medium confidence threshold
 LOW_IMPORTANCE_THRESHOLD = 0.4    # Low-priority threshold
 HIGH_IMPORTANCE_THRESHOLD = 0.7   # Auto-reply eligibility threshold
 

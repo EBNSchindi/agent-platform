@@ -46,6 +46,9 @@ class Config:
     # Fallback Strategy
     LLM_FALLBACK_ENABLED: bool = os.getenv("LLM_FALLBACK_ENABLED", "true").lower() == "true"
 
+    # Agent SDK Integration (Phase 7 - OpenAI Agents SDK)
+    USE_AGENT_SDK: bool = os.getenv("USE_AGENT_SDK", "false").lower() == "true"
+
     # Importance Classifier Thresholds
     IMPORTANCE_CONFIDENCE_HIGH_THRESHOLD: float = float(os.getenv("IMPORTANCE_CONFIDENCE_HIGH_THRESHOLD", "0.85"))
     IMPORTANCE_CONFIDENCE_MEDIUM_THRESHOLD: float = float(os.getenv("IMPORTANCE_CONFIDENCE_MEDIUM_THRESHOLD", "0.6"))

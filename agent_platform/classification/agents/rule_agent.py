@@ -51,14 +51,15 @@ SPAM_KEYWORDS = [
     "urgent action required", "click immediately", "reset password now",
 ]
 
-# ← SAME spam subject patterns as importance_rules.py
+# ← SAME spam subject patterns as importance_rules.py (with regex fixes)
 SPAM_SUBJECT_PATTERNS = [
     r"RE:\s*RE:\s*RE:",  # Multiple RE: (often spam)
     r"\$\$\$",            # Dollar signs
-    r"!!!{3,}",           # Multiple exclamation marks
+    r"!{3,}",             # Multiple exclamation marks (FIXED: ! is not special in regex)
     r"WIN\s*WIN\s*WIN",   # Repeated "WIN"
     r"100%\s*FREE",       # "100% FREE"
     r"[A-Z]{10,}",        # Excessive caps
+    r"\$[\d,]+",          # Money amounts ($1,000,000)
 ]
 
 # ← SAME auto-reply keywords as importance_rules.py

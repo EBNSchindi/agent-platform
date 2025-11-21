@@ -34,6 +34,7 @@ from agent_platform.classification import (
     EmailToClassify,
     ScoringWeights,
 )
+from agent_platform.core.config import Config
 from agent_platform.extraction import ExtractionAgent
 from agent_platform.review import ReviewQueueManager
 
@@ -75,9 +76,10 @@ class EmailProcessingStats(BaseModel):
 
 class ClassificationOrchestrator:
     """
-    Orchestrates the complete email classification workflow (Phase 2).
+    Orchestrates the complete email classification workflow (Phase 2 & 7).
 
     Integrates:
+    - AgentBasedClassifier (OpenAI Agent SDK - Phase 7) - If USE_AGENT_SDK=true
     - EnsembleClassifier (All 3 layers parallel + weighted combination) - DEFAULT
     - LegacyClassifier (Early-stopping) - Optional for backwards compatibility
     - ReviewQueueManager (for medium-confidence items)
@@ -113,10 +115,24 @@ class ClassificationOrchestrator:
             self.db = get_db().__enter__()
             self._owns_db = True
 
-        # Initialize classifier (Ensemble or Legacy)
+        # Initialize classifier (Agent SDK, Ensemble, or Legacy)
         self.use_legacy = use_legacy
 
-        if use_legacy:
+        # Phase 7: Agent SDK Integration (Feature-Flagged)
+        if Config.USE_AGENT_SDK:
+            try:
+                from agent_platform.classification.agents import AgentBasedClassifier
+                print("🤖 Using AgentBasedClassifier (OpenAI Agent SDK - Phase 7)")
+                self.classifier = AgentBasedClassifier()  # No db argument
+            except ImportError as e:
+                print(f"⚠️  Agent SDK not available, falling back to EnsembleClassifier: {e}")
+                print("   Install with: pip install agents")
+                self.classifier = EnsembleClassifier(
+                    db=self.db,
+                    weights=ensemble_weights,
+                    smart_llm_skip=smart_llm_skip
+                )
+        elif use_legacy:
             print("⚠️  Using LegacyClassifier (early-stopping architecture)")
             self.classifier = LegacyClassifier(db=self.db)
         else:
