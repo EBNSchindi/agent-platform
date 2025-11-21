@@ -161,18 +161,20 @@ class MemoryService:
         """Get all tasks extracted from a specific email."""
         return self.db.query(Task).filter(Task.email_id == email_id).all()
 
-    def update_task_status(
+    def update_task(
         self,
         task_id: str,
-        new_status: str,
+        status: Optional[str] = None,
+        priority: Optional[str] = None,
         completion_notes: Optional[str] = None,
     ) -> Optional[Task]:
         """
-        Update task status.
+        Update task fields (status, priority, notes).
 
         Args:
             task_id: Task ID
-            new_status: New status (pending, in_progress, completed, cancelled, waiting)
+            status: Optional new status (pending, in_progress, completed, cancelled, waiting)
+            priority: Optional new priority (low, medium, high, urgent)
             completion_notes: Optional notes
 
         Returns:
@@ -183,31 +185,60 @@ class MemoryService:
         if not task:
             return None
 
-        old_status = task.status
-        task.status = new_status
+        # Track changes for event logging
+        changes = {}
 
-        if new_status == "completed" and not task.completed_at:
-            task.completed_at = datetime.utcnow()
+        if status is not None and status != task.status:
+            changes['old_status'] = task.status
+            changes['new_status'] = status
+            task.status = status
+
+            if status == "completed" and not task.completed_at:
+                task.completed_at = datetime.utcnow()
+
+        if priority is not None and priority != task.priority:
+            changes['old_priority'] = task.priority
+            changes['new_priority'] = priority
+            task.priority = priority
 
         if completion_notes:
             task.completion_notes = completion_notes
+            changes['completion_notes'] = completion_notes
 
         self.db.commit()
 
-        # Log event (Event-First)
-        log_event(
-            event_type=EventType.TASK_STATUS_CHANGED,
-            account_id=task.account_id,
-            email_id=task.email_id,
-            payload={
-                'task_id': task_id,
-                'old_status': old_status,
-                'new_status': new_status,
-                'completion_notes': completion_notes,
-            }
-        )
+        # Log event if anything changed (Event-First)
+        if changes:
+            log_event(
+                event_type=EventType.TASK_STATUS_CHANGED if 'new_status' in changes else EventType.TASK_EXTRACTED,
+                account_id=task.account_id,
+                email_id=task.email_id,
+                payload={
+                    'task_id': task_id,
+                    **changes,
+                }
+            )
 
         return task
+
+    def update_task_status(
+        self,
+        task_id: str,
+        new_status: str,
+        completion_notes: Optional[str] = None,
+    ) -> Optional[Task]:
+        """
+        Update task status (legacy method, calls update_task).
+
+        Args:
+            task_id: Task ID
+            new_status: New status (pending, in_progress, completed, cancelled, waiting)
+            completion_notes: Optional notes
+
+        Returns:
+            Updated Task or None if not found
+        """
+        return self.update_task(task_id, status=new_status, completion_notes=completion_notes)
 
     def complete_task(
         self,
@@ -754,8 +785,18 @@ def get_tasks_by_email(email_id: str) -> List[Task]:
     return _get_service().get_tasks_by_email(email_id)
 
 
+def update_task(
+    task_id: str,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    completion_notes: Optional[str] = None
+) -> Optional[Task]:
+    """Update task fields (status, priority, notes)."""
+    return _get_service().update_task(task_id, status, priority, completion_notes)
+
+
 def update_task_status(task_id: str, new_status: str, completion_notes: Optional[str] = None) -> Optional[Task]:
-    """Update task status."""
+    """Update task status (legacy method)."""
     return _get_service().update_task_status(task_id, new_status, completion_notes)
 
 

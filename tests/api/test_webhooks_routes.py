@@ -341,21 +341,31 @@ def test_receive_notification_invalid_base64(client):
 
 def test_check_expirations_none_expired(client, sample_subscription_config):
     """Test checking expirations when none are expired"""
-    # Note: The check-expirations route has a routing conflict with {account_id} route
-    # FastAPI matches /subscriptions/check-expirations to /subscriptions/{account_id}
-    # This is an API design issue that should be fixed by moving check-expirations
-    # before the {account_id} route in webhooks.py
+    # Create a fresh subscription
+    client.post("/api/v1/webhooks/subscriptions", json=sample_subscription_config)
 
-    # For now, we'll skip this test due to routing conflict
-    # TODO: Fix route order in agent_platform/api/routes/webhooks.py
-    pytest.skip("Routing conflict: check-expirations matched by {account_id} route")
+    # Check expirations
+    response = client.get("/api/v1/webhooks/subscriptions/check-expirations")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "expired_accounts" in data
+    assert "count" in data
+    assert isinstance(data["expired_accounts"], list)
+    assert data["count"] == len(data["expired_accounts"])
 
 
 def test_check_expirations_endpoint_exists(client):
-    """Test that check expirations endpoint exists (has routing conflict)"""
-    # Note: Same routing conflict as above test
-    # The endpoint exists but is unreachable due to route order
-    pytest.skip("Routing conflict: check-expirations matched by {account_id} route")
+    """Test that check expirations endpoint exists and is reachable"""
+    response = client.get("/api/v1/webhooks/subscriptions/check-expirations")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should have correct structure
+    assert "expired_accounts" in data
+    assert "count" in data
 
 
 # ============================================================================

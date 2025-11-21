@@ -36,6 +36,7 @@ from agent_platform.memory.service import (
     get_task,
     get_pending_tasks,
     get_tasks_by_email,
+    update_task,
     update_task_status,
     complete_task,
     # Decision operations
@@ -65,6 +66,7 @@ __all__ = [
     'get_task',
     'get_pending_tasks',
     'get_tasks_by_email',
+    'update_task',
     'update_task_status',
     'complete_task',
     # Decision operations
