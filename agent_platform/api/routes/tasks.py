@@ -120,29 +120,34 @@ def get_task_detail(task_id: str, db: Session = Depends(get_db_session)):
 
 
 @router.patch("/tasks/{task_id}", response_model=TaskResponse)
-def update_task(
+def update_task_endpoint(
     task_id: str,
     request: TaskUpdateRequest,
     db: Session = Depends(get_db_session),
 ):
     """
-    Update task status or other fields.
+    Update task status, priority, or other fields.
 
     Args:
         task_id: Task ID
-        request: Fields to update
+        request: Fields to update (status, priority, completion_notes)
     """
+    from agent_platform.memory import update_task
+
+    # Check if task exists
     task = get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # Update fields
-    if request.status:
-        update_task_status(task_id, request.status)
+    # Update task with all provided fields
+    updated_task = update_task(
+        task_id=task_id,
+        status=request.status,
+        priority=request.priority,
+        completion_notes=request.completion_notes
+    )
 
-    # Refresh task
-    task = get_task(task_id)
-    return TaskResponse.from_orm(task)
+    return TaskResponse.from_orm(updated_task)
 
 
 @router.post("/tasks/{task_id}/complete")

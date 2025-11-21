@@ -79,6 +79,23 @@ async def create_subscription(
         raise HTTPException(status_code=500, detail=f"Failed to create subscription: {str(e)}")
 
 
+@router.get("/subscriptions/check-expirations")
+async def check_expirations(
+    webhook_service: WebhookService = Depends(get_webhook_service),
+):
+    """
+    Check for expired subscriptions
+
+    **Returns:**
+    - List of expired account IDs
+
+    **Note:** This route must be defined BEFORE /subscriptions/{account_id}
+    to avoid being matched as an account_id parameter.
+    """
+    expired = webhook_service.check_expirations()
+    return {"expired_accounts": expired, "count": len(expired)}
+
+
 @router.get("/subscriptions/{account_id}", response_model=SubscriptionInfo)
 async def get_subscription(
     account_id: str,
@@ -246,17 +263,3 @@ async def receive_notification(
     except Exception as e:
         logger.error(f"Failed to process notification: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to process notification: {str(e)}")
-
-
-@router.get("/subscriptions/check-expirations")
-async def check_expirations(
-    webhook_service: WebhookService = Depends(get_webhook_service),
-):
-    """
-    Check for expired subscriptions
-
-    **Returns:**
-    - List of expired account IDs
-    """
-    expired = webhook_service.check_expirations()
-    return {"expired_accounts": expired, "count": len(expired)}
