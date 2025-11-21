@@ -539,3 +539,127 @@ export const useCancelScan = () => {
     },
   });
 };
+
+// ============================================================================
+// Accounts Queries (Dynamic Account Discovery)
+// ============================================================================
+
+export interface AccountInfo {
+  account_id: string;
+  email: string;
+  account_type: 'gmail' | 'ionos' | 'unknown';
+  has_token: boolean;
+  last_seen: string | null;
+  email_count: number;
+}
+
+export interface AccountListResponse {
+  accounts: AccountInfo[];
+  total: number;
+}
+
+export const useAccounts = (forceRefresh: boolean = false) => {
+  return useQuery({
+    queryKey: ['accounts', forceRefresh],
+    queryFn: async () => {
+      const { data } = await apiClient.get<AccountListResponse>(
+        `/accounts?force_refresh=${forceRefresh}`
+      );
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+};
+
+export const useAccount = (accountId: string) => {
+  return useQuery({
+    queryKey: ['accounts', accountId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<AccountInfo>(`/accounts/${accountId}`);
+      return data;
+    },
+    enabled: !!accountId,
+  });
+};
+
+// ============================================================================
+// Emails Queries (Inbox)
+// ============================================================================
+
+export interface EmailListItem {
+  id: number;
+  email_id: string;
+  account_id: string;
+  sender: string | null;
+  subject: string | null;
+  received_at: string | null;
+  category: string | null;
+  confidence: number | null;
+  importance_score: number | null;
+  has_attachments: boolean;
+  thread_id: string | null;
+  processed_at: string;
+}
+
+export interface EmailDetail extends EmailListItem {
+  body_text: string | null;
+  body_html: string | null;
+  attachments_metadata: any | null;
+  in_reply_to: string | null;
+  references: string[] | null;
+  labels: string[] | null;
+  tasks: any[];
+  decisions: any[];
+  questions: any[];
+}
+
+export interface EmailListResponse {
+  emails: EmailListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  account_id: string | null;
+}
+
+export interface EmailFilters {
+  account_id?: string;
+  category?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export const useEmails = (filters: EmailFilters = {}) => {
+  const {
+    account_id,
+    category,
+    limit = 20,
+    offset = 0,
+  } = filters;
+
+  return useQuery({
+    queryKey: ['emails', account_id, category, limit, offset],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (account_id) params.append('account_id', account_id);
+      if (category) params.append('category', category);
+      params.append('limit', limit.toString());
+      params.append('offset', offset.toString());
+
+      const { data } = await apiClient.get<EmailListResponse>(
+        `/emails?${params.toString()}`
+      );
+      return data;
+    },
+  });
+};
+
+export const useEmailDetail = (emailId: string) => {
+  return useQuery({
+    queryKey: ['emails', emailId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<EmailDetail>(`/emails/${emailId}`);
+      return data;
+    },
+    enabled: !!emailId,
+  });
+};
