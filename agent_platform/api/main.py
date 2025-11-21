@@ -22,6 +22,7 @@ from agent_platform.api.routes import (
     webhooks,
     auth,
     accounts,
+    nlp,
 )
 
 
@@ -80,6 +81,7 @@ app.include_router(attachments.router)  # Already has /api/v1 prefix
 app.include_router(threads.router)  # Already has /api/v1 prefix
 app.include_router(history_scan.router)  # Already has /api/v1 prefix
 app.include_router(webhooks.router)  # Already has /api/v1 prefix
+app.include_router(nlp.router)  # NLP Intent Parser routes (Phase 6)
 
 
 if __name__ == "__main__":
