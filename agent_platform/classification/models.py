@@ -11,17 +11,38 @@ from datetime import datetime
 
 
 # ============================================================================
-# IMPORTANCE CATEGORIES
+# EMAIL CATEGORIES (10-Category System - Phase 8)
 # ============================================================================
 
-ImportanceCategory = Literal[
-    "wichtig",              # Important - requires attention
-    "action_required",      # Action required - needs response/action
-    "nice_to_know",         # Nice to know - informational
-    "newsletter",           # Newsletter/marketing
-    "system_notifications", # Automated system notifications
-    "spam"                  # Spam/unwanted
+EmailCategory = Literal[
+    "wichtig_todo",         # 1. Important & ToDo - Action required, decisions, callbacks
+    "termine",              # 2. Appointments & Events - Calendar invitations, event info
+    "finanzen",             # 3. Finance & Invoices - Invoices, payments, insurance
+    "bestellungen",         # 4. Orders & Shipping - Order confirmations, tracking
+    "job_projekte",         # 5. Job & Projects - Business communication, customers
+    "vertraege",            # 6. Contracts & Official - Contracts, authorities, formal
+    "persoenlich",          # 7. Personal Communication - Family, friends, private
+    "newsletter",           # 8. Newsletter & Info - Regular updates, content
+    "werbung",              # 9. Marketing & Promo - Sales, discounts, marketing
+    "spam"                  # 10. Spam / Phishing - Spam, phishing, junk
 ]
+
+# Backwards compatibility alias (deprecated, will be removed)
+ImportanceCategory = EmailCategory
+
+# Category to Default Importance Score mapping
+CATEGORY_IMPORTANCE_MAP = {
+    "wichtig_todo": 0.95,      # Very important - requires action
+    "termine": 0.90,           # Very important - time-sensitive
+    "vertraege": 0.95,         # Very important - formal/legal
+    "finanzen": 0.85,          # Important - financial matters
+    "bestellungen": 0.70,      # Medium - tracking/confirmations
+    "job_projekte": 0.80,      # Important - work-related
+    "persoenlich": 0.75,       # Medium-high - personal context
+    "newsletter": 0.40,        # Low - informational only
+    "werbung": 0.20,           # Very low - marketing
+    "spam": 0.05,              # Minimal - unwanted
+}
 
 
 # ============================================================================

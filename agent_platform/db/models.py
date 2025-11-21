@@ -201,15 +201,20 @@ class ProcessedEmail(Base):
     processed_at = Column(DateTime, default=datetime.utcnow)
 
     # Classification results (Legacy - basic classifier)
-    category = Column(String(100), nullable=True)  # spam, important, normal, auto_reply_candidate
-    confidence = Column(Float, nullable=True)
+    category = Column(String(100), nullable=True)  # DEPRECATED: Old single category (spam, important, normal)
+    confidence = Column(Float, nullable=True)  # DEPRECATED: Old confidence score
     suggested_label = Column(String(200), nullable=True)
     should_reply = Column(Boolean, default=False)
     urgency = Column(String(50), nullable=True)  # low, medium, high
 
-    # NEW: Importance classification results
+    # NEW: 10-Category System (Phase 8)
+    primary_category = Column(String(100), nullable=True, index=True)  # Main category (wichtig_todo, termine, etc.)
+    secondary_categories = Column(JSON, default=list)  # Additional tags/categories (max 3)
+    category_confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence for primary_category
+
+    # Importance classification results
     importance_score = Column(Float, nullable=True)  # 0.0-1.0 importance score
-    classification_confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence
+    classification_confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence (legacy)
     llm_provider_used = Column(String(50), nullable=True)  # ollama, openai_fallback, rules_only
     rule_layer_hint = Column(String(500), nullable=True)  # What rules detected
     history_layer_hint = Column(String(500), nullable=True)  # Historical context used
@@ -240,10 +245,14 @@ class ProcessedEmail(Base):
     original_category = Column(String(100), nullable=True)  # Original category before user correction
     original_confidence = Column(Float, nullable=True)  # Original confidence before user correction
 
-    # Gmail action tracking
-    gmail_label_applied = Column(String(200), nullable=True)  # Label that was applied (e.g., "🔴 Wichtig")
+    # Gmail action tracking (Multi-label support)
+    gmail_label_applied = Column(String(200), nullable=True)  # DEPRECATED: Single label (legacy)
+    gmail_labels_applied = Column(JSON, default=list)  # NEW: Multiple labels for Gmail (primary + secondary)
     gmail_archived = Column(Boolean, default=False)  # True if email was archived
     gmail_marked_read = Column(Boolean, default=False)  # True if email was marked as read
+
+    # IONOS action tracking (Single folder only)
+    ionos_folder_applied = Column(String(200), nullable=True)  # Folder for IONOS (primary category only)
 
     # Response tracking
     draft_generated = Column(Boolean, default=False)
@@ -320,8 +329,18 @@ class SenderPreference(Base):
     sender_domain = Column(String(200), nullable=False, index=True)
     sender_name = Column(String(200), nullable=True)
 
+    # NEW: Trust & Whitelist/Blacklist (Phase 8)
+    trust_level = Column(String(50), default='neutral', index=True)  # trusted, neutral, suspicious, blocked
+    is_whitelisted = Column(Boolean, default=False, index=True)  # Explicitly trusted
+    is_blacklisted = Column(Boolean, default=False, index=True)  # Explicitly blocked
+
+    # NEW: Category Preferences (Phase 8)
+    allowed_categories = Column(JSON, default=list)  # Only allow these categories from this sender
+    muted_categories = Column(JSON, default=list)  # Ignore these categories from this sender
+    preferred_primary_category = Column(String(100), nullable=True)  # Preferred primary category
+
     # Learned preferences (updated based on user actions)
-    preferred_category = Column(String(100), nullable=True)  # Most common category
+    preferred_category = Column(String(100), nullable=True)  # DEPRECATED: Most common category (legacy)
     average_importance = Column(Float, default=0.5)  # 0.0-1.0
 
     # Statistics
@@ -422,6 +441,105 @@ class FeedbackEvent(Base):
 
     def __repr__(self):
         return f"<FeedbackEvent(action='{self.action_type}', sender='{self.sender_email}')>"
+
+
+class UserPreferenceRule(Base):
+    """
+    User-defined preference rules for email handling
+
+    Created via:
+    - NLP Intent Parser (GUI chat, Plaud voice notes)
+    - Manual UI configuration
+    - API endpoints
+
+    Rules are applied during classification to modify behavior.
+    """
+    __tablename__ = "user_preference_rules"
+
+    id = Column(Integer, primary_key=True)
+    rule_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+    account_id = Column(String(100), nullable=False, index=True)  # gmail_1, gmail_2, etc.
+
+    # Rule priority (higher = applied first)
+    priority = Column(Integer, default=100, index=True)  # 0-1000, default: 100
+
+    # Scope & Pattern
+    applies_to = Column(String(50), nullable=False, index=True)  # sender_email, sender_domain, category, global
+    pattern = Column(String(500), nullable=False, index=True)  # "*@amazon.de", "wichtig_todo", etc.
+
+    # Conditions (optional filters)
+    if_primary_category = Column(String(100), nullable=True)  # Only if primary category matches
+    if_has_secondary = Column(JSON, default=list)  # Only if has these secondary categories
+    if_sender_domain = Column(String(200), nullable=True, index=True)  # Only if sender domain matches
+
+    # Actions
+    action = Column(String(50), nullable=False, index=True)
+    # Possible values: set_primary, add_secondary, remove_secondary, set_importance,
+    #                  move_folder, archive, label, mark_read, whitelist, blacklist
+    action_params = Column(JSON, default={})  # e.g., {"folder": "Werbung", "importance": 0.2}
+
+    # Origin tracking
+    created_via = Column(String(50), nullable=False, default='manual')  # gui_chat, api, plaud, manual
+    source_text = Column(Text, nullable=True)  # Original NLP input (if from NLP parser)
+
+    # Metadata
+    active = Column(Boolean, default=True, index=True)  # Can be disabled without deleting
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_applied_at = Column(DateTime, nullable=True)  # When rule was last used
+    times_applied = Column(Integer, default=0)  # How many times rule was applied
+    extra_metadata = Column(JSON, default={})
+
+    def __repr__(self):
+        return f"<UserPreferenceRule(rule_id='{self.rule_id}', action='{self.action}', pattern='{self.pattern}')>"
+
+
+class NLPIntent(Base):
+    """
+    Natural language intent history
+
+    Tracks all NLP-based preference updates from:
+    - GUI chat interface
+    - Plaud voice notes (future)
+    - API text input
+
+    Used for:
+    - Audit trail
+    - Intent parser improvement
+    - User feedback collection
+    """
+    __tablename__ = "nlp_intents"
+
+    id = Column(Integer, primary_key=True)
+    intent_id = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+    account_id = Column(String(100), nullable=False, index=True)
+
+    # Input
+    source_text = Column(Text, nullable=False)  # Original user input
+    source_channel = Column(String(50), nullable=False, default='gui_chat')  # gui_chat, api, plaud
+
+    # Parsed Intent
+    parsed_intent = Column(JSON, nullable=False)  # Structured intent object from LLM
+    intent_type = Column(String(100), nullable=True, index=True)  # whitelist_sender, mute_category, etc.
+    confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence in parsing
+
+    # Execution
+    rules_created = Column(JSON, default=list)  # List of rule_ids created from this intent
+    status = Column(String(50), nullable=False, default='pending', index=True)
+    # Status values: success, failed, ambiguous, needs_clarification, pending
+    error_message = Column(Text, nullable=True)  # If failed or ambiguous
+
+    # User feedback
+    user_confirmed = Column(Boolean, default=False)  # User confirmed intent was correct
+    user_feedback = Column(Text, nullable=True)  # User correction/feedback
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    executed_at = Column(DateTime, nullable=True)  # When intent was executed
+    extra_metadata = Column(JSON, default={})
+
+    def __repr__(self):
+        return f"<NLPIntent(intent_id='{self.intent_id}', status='{self.status}', type='{self.intent_type}')>"
 
 
 class ReviewQueueItem(Base):
