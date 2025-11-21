@@ -19,6 +19,7 @@ from agent_platform.api.routes import (
     threads,
     history_scan,
     webhooks,
+    auth,
 )
 
 
@@ -64,6 +65,7 @@ def health_check():
 
 
 # Include Routers
+app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(email_agent.router, prefix="/api/v1", tags=["email-agent"])
 app.include_router(tasks.router, prefix="/api/v1", tags=["tasks"])
 app.include_router(decisions.router, prefix="/api/v1", tags=["decisions"])
