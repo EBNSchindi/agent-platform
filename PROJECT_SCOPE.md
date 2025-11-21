@@ -1,8 +1,8 @@
 # Project Scope: Digital Twin Email Platform
 
-**Version:** 2.3.0
-**Status:** Phase 2 COMPLETE ✅ (Integration Tests + All Core Features)
-**Letztes Update:** 2025-11-20
+**Version:** 2.6.0
+**Status:** Phase 6 COMPLETE ✅ (10-Category System with NLP Preferences)
+**Letztes Update:** 2025-11-21
 **Autor:** Daniel Schindler
 
 ---
@@ -28,6 +28,12 @@ Dieses Projekt hat drei zentrale Dokumente:
    - Human-in-the-Loop (HITL) Prinzipien
    - Phase 1-5 Roadmap (2-Jahres-Plan)
 
+4. **[docs/10_CATEGORY_SYSTEM.md](docs/10_CATEGORY_SYSTEM.md)** - **10-Category Classification System**
+   - Fine-grained email categories (Primary + Secondary)
+   - Sender profile management (Whitelist/Blacklist)
+   - NLP intent parser (Natural language preferences)
+   - Multi-provider support (Gmail/IONOS)
+
 💡 **Für neue Entwickler**: Start hier → dann CLAUDE.md → dann VISION.md
 💡 **Für AI-Assistenten**: CLAUDE.md ist dein Hauptdokument
 💡 **Für Stakeholder**: VISION.md zeigt das Big Picture
@@ -38,16 +44,19 @@ Dieses Projekt hat drei zentrale Dokumente:
 
 Die **Digital Twin Email Platform** ist ein intelligentes Email-Management-System, das als digitaler Zwilling agiert - es lernt kontinuierlich von deinen Entscheidungen und unterstützt dich proaktiv bei der Email-Bearbeitung.
 
-**Aktueller Fokus (Phase 2):**
+**Aktueller Fokus (Phase 6):**
 - ✅ Event-Log System (Foundation für Learning & Digital Twin)
 - ✅ Email Importance Classification - Legacy (3-Layer: Rules → History → LLM)
 - ✅ Email Extraction (Tasks, Decisions, Questions)
 - ✅ Ensemble Classifier (3-Layer Parallel System mit Weighted Scoring)
-- ✅ Integration Testing & Validation (19/19 Tests passing)
-- 🚧 Memory-Objects (abgeleitete Strukturen aus Events)
-- 🚧 Daily Journal Generation
+- ✅ **10-Category Email Classification** (Primary + Secondary Categories)
+- ✅ **Sender Profile Management** (Whitelist/Blacklist, Trust Levels)
+- ✅ **NLP Intent Parser** (Natural Language → Structured Preferences)
+- ✅ **Multi-Provider Support** (Gmail Multi-Label, IONOS Single-Folder)
+- ✅ Memory-Objects & Daily Journal Generation
+- ✅ Integration Testing & Validation (200+ tests, ~95% pass rate)
 
-**Phase 2 Status**: ✅ **COMPLETE** - Alle Core Features + Tests gemerged (PR #9, #10)
+**Phase 6 Status**: ✅ **COMPLETE** - 10-Category System with NLP Preferences (PR #27)
 
 **Langfristige Vision:** Ein digitaler Zwilling, der alle Lebensbereiche (Email, Calendar, Finance, Health, Knowledge) orchestriert. Details: [docs/VISION.md](docs/VISION.md)
 
