@@ -162,7 +162,7 @@ export default function InboxPage() {
             ) : (
               emails.map((email) => (
                 <EmailListItem
-                  key={email.email_id}
+                  key={email.id || email.email_id}
                   email={email}
                   isSelected={selectedEmailId === email.email_id}
                   onClick={() => handleEmailSelect(email.email_id)}

@@ -222,7 +222,7 @@ class RuleLayer:
                     matched_rules=matched_rules,
                     importance=0.1,
                     confidence=0.70,  # ❗ LOWERED from 0.90 → more emails to History/LLM
-                    category="system_notifications",
+                    category="newsletter",  # Auto-replies are informational
                     reasoning=f"Likely auto-reply (check history): {', '.join(auto_matches)}",
                     spam_signals=spam_signals,
                     auto_reply_signals=auto_reply_signals,
@@ -262,7 +262,7 @@ class RuleLayer:
                 matched_rules=matched_rules,
                 importance=0.4,
                 confidence=0.50,  # ❗ LOWERED from 0.80 → LLM/History decides importance
-                category="system_notifications",
+                category="newsletter",  # System notifications (password resets, confirmations) are informational
                 reasoning=f"Possible system notification (pass to LLM): {', '.join(system_matches[:2])}",
                 spam_signals=spam_signals,
                 auto_reply_signals=auto_reply_signals,
@@ -279,7 +279,7 @@ class RuleLayer:
                 matched_rules=matched_rules or ["no_clear_pattern"],
                 importance=0.5,  # Neutral importance
                 confidence=0.3,  # Low confidence - needs next layer
-                category="nice_to_know",  # Default category
+                category="newsletter",  # Default category (neutral fallback)
                 reasoning="Weak patterns detected, needs deeper analysis",
                 spam_signals=spam_signals,
                 auto_reply_signals=auto_reply_signals,
@@ -291,7 +291,7 @@ class RuleLayer:
             matched_rules=["no_pattern_match"],
             importance=0.5,  # Neutral
             confidence=0.2,  # Very low confidence - definitely needs next layer
-            category="nice_to_know",
+            category="newsletter",  # Default fallback
             reasoning="No clear rule patterns matched",
             spam_signals=[],
             auto_reply_signals=[],

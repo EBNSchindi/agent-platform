@@ -137,7 +137,7 @@ class HistoryLayer:
                 total_historical_emails=pref.total_emails_received if pref else 0,
                 importance=0.5,  # Neutral importance
                 confidence=0.4,  # Low-medium confidence (not enough data)
-                category="nice_to_know",
+                category="newsletter",  # Neutral fallback
                 reasoning=f"Insufficient historical data ({pref.total_emails_received if pref else 0} emails) for confident classification",
                 data_source=data_source,
             )
@@ -153,7 +153,7 @@ class HistoryLayer:
             total_historical_emails=0,
             importance=0.5,  # Neutral
             confidence=0.2,  # Very low confidence - needs LLM layer
-            category="nice_to_know",
+            category="newsletter",  # Neutral fallback
             reasoning="No historical data available - first email from this sender/domain",
             data_source="default",
         )
@@ -305,25 +305,25 @@ class HistoryLayer:
         if reply_rate >= self.HIGH_REPLY_RATE:
             # Very responsive to this sender
             if avg_time_to_reply and avg_time_to_reply < 2.0:  # < 2 hours
-                # Quick replies → action required
+                # Quick replies → wichtig_todo (important with action)
                 return (
                     0.9,
-                    "action_required",
+                    "wichtig_todo",
                     f"{reply_rate:.0%} reply rate, avg {avg_time_to_reply:.1f}h response time"
                 )
             else:
                 # Regular replies → important
                 return (
                     0.8,
-                    "wichtig",
+                    "wichtig_todo",
                     f"{reply_rate:.0%} reply rate (consistently responded to)"
                 )
 
-        # Medium reply rate → nice to know
+        # Medium reply rate → persoenlich (personal/occasional communication)
         elif reply_rate >= self.MEDIUM_REPLY_RATE:
             return (
                 0.5,
-                "nice_to_know",
+                "persoenlich",  # Personal communication category
                 f"{reply_rate:.0%} reply rate (occasionally responded to)"
             )
 
@@ -343,11 +343,11 @@ class HistoryLayer:
                 f"{delete_rate:.0%} deleted (likely unwanted)"
             )
 
-        # Low engagement overall → system notifications or low priority
+        # Low engagement overall → newsletter or low priority
         else:
             return (
                 0.4,
-                "system_notifications",
+                "newsletter",
                 f"Low engagement ({reply_rate:.0%} reply, {archive_rate:.0%} archive)"
             )
 

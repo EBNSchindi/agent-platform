@@ -242,20 +242,22 @@ class AccountRegistry:
                     account_id = str(row.account_id)
 
                     if account_id in accounts_dict:
-                        # Enrich existing account
+                        # Enrich existing account (only configured accounts)
                         accounts_dict[account_id].last_seen = row.last_seen
                         accounts_dict[account_id].email_count = row.email_count
-                    else:
-                        # Discover new account from database
-                        account_type = self._determine_account_type(account_id)
-                        accounts_dict[account_id] = AccountInfo(
-                            account_id=account_id,
-                            email=f"{account_id}@unknown.com",
-                            account_type=account_type,
-                            has_token=False,
-                            last_seen=row.last_seen,
-                            email_count=row.email_count
-                        )
+                    # else:
+                    #     # DISABLED: Don't auto-discover accounts from database
+                    #     # This was adding test/dummy accounts to the UI
+                    #     # Only show accounts configured in .env or with token files
+                    #     account_type = self._determine_account_type(account_id)
+                    #     accounts_dict[account_id] = AccountInfo(
+                    #         account_id=account_id,
+                    #         email=f"{account_id}@unknown.com",
+                    #         account_type=account_type,
+                    #         has_token=False,
+                    #         last_seen=row.last_seen,
+                    #         email_count=row.email_count
+                    #     )
 
         except Exception as e:
             # Log error but don't fail discovery

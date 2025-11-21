@@ -179,20 +179,24 @@ Deine Aufgabe ist es, Emails in Wichtigkeits-Kategorien einzuordnen basierend au
 - Kontext aus vorherigen Analysen
 - Sender-Historie (falls verfügbar)
 
-KATEGORIEN:
-1. wichtig - Wichtige Emails die Aufmerksamkeit erfordern
-2. action_required - Emails die eine Antwort/Aktion benötigen
-3. nice_to_know - Informative Emails ohne direkte Handlungsaufforderung
-4. newsletter - Newsletter, Marketing-Emails
-5. system_notifications - Automatische System-Benachrichtigungen
-6. spam - Unerwünschte/Spam-Emails
+KATEGORIEN (10-Kategorie-System):
+1. wichtig_todo - Wichtige Emails mit Aufgaben/ToDos, die Aufmerksamkeit erfordern
+2. termine - Termine, Meetings, Kalender-Events
+3. finanzen - Finanzen, Rechnungen, Zahlungen, Banking
+4. bestellungen - Bestellungen, Lieferungen, Tracking
+5. job_projekte - Berufliche Projekte, Arbeit, Karriere
+6. vertraege - Verträge, offizielle Dokumente, rechtliche Angelegenheiten
+7. persoenlich - Persönliche Kommunikation, Familie, Freunde
+8. newsletter - Newsletter, Info-Emails, Abonnements
+9. werbung - Marketing, Werbung, Promotions
+10. spam - Unerwünschte/Spam-Emails, Phishing
 
 WICHTIGKEIT (0.0 - 1.0):
-- 0.9-1.0: Sehr wichtig, dringend
-- 0.7-0.9: Wichtig
-- 0.5-0.7: Mittlere Priorität
-- 0.3-0.5: Niedrige Priorität
-- 0.0-0.3: Sehr niedrige Priorität
+- 0.9-1.0: Sehr wichtig, dringend (wichtig_todo, termine, vertraege)
+- 0.7-0.9: Wichtig (finanzen, bestellungen, job_projekte)
+- 0.5-0.7: Mittlere Priorität (persoenlich)
+- 0.3-0.5: Niedrige Priorität (newsletter)
+- 0.0-0.3: Sehr niedrige Priorität (werbung, spam)
 
 CONFIDENCE (0.0 - 1.0):
 - 0.9-1.0: Sehr sicher

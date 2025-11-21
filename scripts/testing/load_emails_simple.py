@@ -214,7 +214,7 @@ async def main():
 
     # Find all JSON token files
     tokens_dir = Path('tokens')
-    token_files = list(tokens_dir.glob('gmail_account_*_token.json'))
+    token_files = list(tokens_dir.glob('gmail_*_token.json'))
 
     if not token_files:
         print("❌ No token files found in tokens/ directory")
