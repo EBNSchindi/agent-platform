@@ -539,10 +539,8 @@ class ClassificationOrchestrator:
         Returns:
             processed_email.id (needed for FK linkage with memory objects)
         """
-        # Determine account_id for database (integer foreign key)
-        # For now, use a placeholder - in production, this would lookup the account ID
-        # from email_accounts table
-        db_account_id = 1  # Placeholder
+        # Use the account_id directly (TEXT field in database)
+        db_account_id = account_id
 
         # Extract attributes (supports both Ensemble and Legacy)
         category, importance, confidence = self._get_classification_attrs(classification)
@@ -600,10 +598,11 @@ class ClassificationOrchestrator:
         )
 
         self.db.add(processed_email)
+        self.db.flush()  # Flush to get ID without detaching from session
+        processed_email_id = processed_email.id
         self.db.commit()
-        self.db.refresh(processed_email)  # Get the generated ID
 
-        return processed_email.id
+        return processed_email_id
 
     # ========================================================================
     # HELPER METHODS

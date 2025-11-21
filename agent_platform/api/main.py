@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from agent_platform.db.database import init_db
 from agent_platform.api.routes import (
     email_agent,
+    emails,
     tasks,
     decisions,
     questions,
@@ -20,6 +21,7 @@ from agent_platform.api.routes import (
     history_scan,
     webhooks,
     auth,
+    accounts,
 )
 
 
@@ -66,6 +68,8 @@ def health_check():
 
 # Include Routers
 app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
+app.include_router(accounts.router, prefix="/api/v1", tags=["accounts"])
+app.include_router(emails.router, prefix="/api/v1", tags=["emails"])
 app.include_router(email_agent.router, prefix="/api/v1", tags=["email-agent"])
 app.include_router(tasks.router, prefix="/api/v1", tags=["tasks"])
 app.include_router(decisions.router, prefix="/api/v1", tags=["decisions"])
