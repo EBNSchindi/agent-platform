@@ -6,13 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Digital Twin Email Platform** - An intelligent email management system with Event-First Architecture and continuous learning. The system learns from user behavior to assist with email processing proactively.
 
-**Current Status:** Phase 2 COMPLETE ✅
+**Current Status:** Phase 5 COMPLETE ✅
 - ✅ Email Importance Classification (3-Layer: Rules → History → LLM)
 - ✅ Ensemble Classification System (Parallel 3-Layer + Weighted Scoring)
 - ✅ Event-Log System (Foundation for Digital Twin)
 - ✅ Email Extraction (Tasks, Decisions, Questions)
 - ✅ Memory-Objects & Journal Generation
-- ✅ Integration Testing (80 test functions, all passing)
+- ✅ History Scan & Webhooks (Phase 5)
+- ✅ Thread Management & Attachments
+- ✅ FastAPI Backend + Next.js Web Cockpit
+- ✅ Integration Testing (188 test functions, all passing)
 
 **Important Documents:**
 - [PROJECT_SCOPE.md](PROJECT_SCOPE.md) - Quick Reference & Current Status
@@ -54,10 +57,11 @@ events = get_events(
 ```
 
 **Event Types (agent_platform/events/event_types.py):**
-- `EMAIL_RECEIVED`, `EMAIL_CLASSIFIED`, `EMAIL_ANALYZED`, `EMAIL_SUMMARIZED`
-- `TASK_EXTRACTED`, `DECISION_EXTRACTED`, `QUESTION_EXTRACTED`
-- `USER_FEEDBACK`, `USER_CORRECTION`, `USER_CONFIRMATION`
-- `JOURNAL_GENERATED`, `JOURNAL_REVIEWED`
+- **Email Events:** `EMAIL_RECEIVED`, `EMAIL_CLASSIFIED`, `EMAIL_ANALYZED`, `EMAIL_SUMMARIZED`
+- **Extraction Events:** `TASK_EXTRACTED`, `DECISION_EXTRACTED`, `QUESTION_EXTRACTED`
+- **User Events:** `USER_FEEDBACK`, `USER_CORRECTION`, `USER_CONFIRMATION`
+- **Journal Events:** `JOURNAL_GENERATED`, `JOURNAL_REVIEWED`
+- **Phase 5 Events:** `HISTORY_SCAN_STARTED`, `HISTORY_SCAN_COMPLETED`, `WEBHOOK_REGISTERED`, `WEBHOOK_RECEIVED`
 
 **When to log events:**
 - ✅ After every classification
@@ -286,6 +290,33 @@ python migrations/run_migration.py
 
 # Verify database
 python scripts/setup/verify_db.py
+
+# Setup Gmail OAuth (if using Gmail accounts)
+PYTHONPATH=. python scripts/testing/test_gmail_auth.py
+
+# Test all connections
+PYTHONPATH=. python scripts/testing/test_all_connections.py
+```
+
+### Running the Full Stack
+
+```bash
+# Terminal 1: Start FastAPI Backend
+PYTHONPATH=. uvicorn agent_platform.api.main:app --reload
+
+# Terminal 2: Start Next.js Frontend
+cd web/cockpit
+npm run dev
+
+# Terminal 3: Run Email Processing (optional)
+PYTHONPATH=. python scripts/operations/run_full_workflow.py
+
+# Terminal 4: Run Scheduler (optional, for automated processing)
+PYTHONPATH=. python scripts/operations/run_scheduler.py
+
+# Access the application:
+# Frontend: http://localhost:3000
+# API Docs: http://localhost:8000/docs
 ```
 
 ### Running Tests
@@ -353,7 +384,86 @@ PYTHONPATH=. python scripts/operations/run_scheduler.py
 # - Spam cleanup: Daily at 2 AM
 ```
 
+### Web Cockpit & API
+
+```bash
+# Start FastAPI backend (port 8000)
+cd agent-platform  # Project root
+PYTHONPATH=. uvicorn agent_platform.api.main:app --reload
+
+# In separate terminal - Start Next.js frontend (port 3000)
+cd web/cockpit
+npm install  # First time only
+npm run dev
+
+# Access:
+# - Frontend: http://localhost:3000
+# - API Docs: http://localhost:8000/docs
+# - API ReDoc: http://localhost:8000/redoc
+```
+
+### History Scan (Phase 5)
+
+```bash
+# Scan mailbox history for an account
+PYTHONPATH=. python scripts/operations/analyze_mailbox_history.py
+
+# Test with real Gmail accounts (last 14 days)
+PYTHONPATH=. python scripts/test_real_world_history_scan.py
+
+# Via API (requires backend running)
+curl -X POST http://localhost:8000/api/history-scan/gmail_1 \
+  -H "Content-Type: application/json" \
+  -d '{"days_back": 30, "max_emails": 500}'
+```
+
+### Webhook Management (Phase 5)
+
+```bash
+# Register webhook for Gmail account
+curl -X POST http://localhost:8000/api/webhooks/register \
+  -H "Content-Type: application/json" \
+  -d '{"account_id": "gmail_1", "webhook_url": "https://your-domain.com/api/webhooks/gmail"}'
+
+# List active webhooks
+curl http://localhost:8000/api/webhooks/gmail_1
+
+# Process webhook manually (testing)
+curl -X POST http://localhost:8000/api/webhooks/gmail \
+  -H "Content-Type: application/json" \
+  -d '{"account_id": "gmail_1", "history_id": "12345"}'
+```
+
 ## Critical Implementation Details
+
+### Email Storage Strategy (REQ-001)
+
+**Storage Level:** All emails are stored with `storage_level='full'` regardless of category or importance.
+
+**What this means:**
+- **Full Body Storage:** Complete email body (text + HTML) is stored in database
+- **Full Attachment Storage:** All attachments are downloaded and stored
+- **Full Extraction:** Tasks, Decisions, Questions are extracted and stored
+- **No Filtering:** All emails receive the same comprehensive storage treatment
+
+**Implementation:**
+```python
+# ClassificationOrchestrator always returns 'full'
+storage_level = orchestrator._determine_storage_level(
+    category='newsletter',  # Ignored
+    importance=0.3,         # Ignored
+    confidence=0.95         # Ignored
+)
+# storage_level == 'full' (always)
+```
+
+**Benefits:**
+- Complete data availability for all emails
+- Simplified logic (no conditional storage rules)
+- Future-proof for analytics and AI features
+- Consistent behavior across all email types
+
+**File:** `agent_platform/orchestration/classification_orchestrator.py:612`
 
 ### Ensemble vs Legacy Classifier
 
@@ -487,6 +597,178 @@ journals/
 
 **File:** `agent_platform/journal/generator.py:1`
 
+### 7. Web Cockpit (Next.js Frontend)
+
+Modern web interface built with Next.js 15 for interacting with the platform:
+
+```bash
+# Start development server
+cd web/cockpit
+npm install
+npm run dev  # Runs on http://localhost:3000
+
+# In separate terminal - Start API backend
+cd ../..  # Back to agent-platform root
+PYTHONPATH=. uvicorn agent_platform.api.main:app --reload  # Runs on http://localhost:8000
+```
+
+**Tech Stack:**
+- **Framework:** Next.js 15 (App Router) + React 19
+- **Language:** TypeScript
+- **Styling:** TailwindCSS
+- **State Management:** TanStack Query (server) + Zustand (client)
+- **HTTP Client:** Axios
+- **Icons:** Lucide React
+
+**Key Pages:**
+- `/` - Dashboard/Cockpit
+- `/email-agent` - Email Agent Overview
+- `/tasks`, `/decisions`, `/questions` - HITL Review Pages
+- `/threads` - Email Threading View
+- `/history-scan` - Mailbox History Analysis
+
+**File:** `web/cockpit/README.md:1`
+
+### 8. FastAPI Backend
+
+REST API built with FastAPI providing 11 route modules:
+
+```python
+from agent_platform.api.main import app
+
+# Start API server
+# PYTHONPATH=. uvicorn agent_platform.api.main:app --reload
+```
+
+**API Routes:**
+- `/api/tasks` - Task management (HITL)
+- `/api/decisions` - Decision management (HITL)
+- `/api/questions` - Question management (HITL)
+- `/api/threads` - Email threading
+- `/api/attachments` - Attachment handling
+- `/api/history-scan` - Mailbox history analysis
+- `/api/webhooks` - Webhook management
+- `/api/review-queue` - Review queue operations
+- `/api/dashboard` - Dashboard statistics
+- `/api/email-agent` - Email agent status
+
+**Authentication:** Currently no auth (local development), JWT planned for production
+
+**File:** `agent_platform/api/main.py:1`
+
+### 9. History Scan Service (Phase 5)
+
+Analyzes historical emails to initialize sender preferences and system learning:
+
+```python
+from agent_platform.history_scan import HistoryScanService
+
+scan_service = HistoryScanService()
+
+# Scan last 30 days of emails
+result = await scan_service.scan_account(
+    account_id="gmail_1",
+    days_back=30,
+    max_emails=500
+)
+
+# Results include:
+# - emails_scanned, emails_classified
+# - sender_preferences_created
+# - tasks_extracted, decisions_extracted, questions_extracted
+# - scan_duration_seconds
+```
+
+**Use Cases:**
+- Initial system setup (bootstrap learning)
+- Account migration
+- Performance testing with real data
+- Sender preference initialization
+
+**File:** `agent_platform/history_scan/history_scan_service.py:1`
+
+### 10. Webhook System (Phase 5)
+
+Real-time email notifications via Gmail Push Notifications API:
+
+```python
+from agent_platform.webhooks import WebhookService
+
+webhook_service = WebhookService()
+
+# Register webhook for account
+await webhook_service.register_webhook(
+    account_id="gmail_1",
+    webhook_url="https://your-domain.com/api/webhooks/gmail"
+)
+
+# Process incoming webhook
+await webhook_service.process_webhook(
+    account_id="gmail_1",
+    history_id="12345",
+    payload=pubsub_message
+)
+```
+
+**Benefits:**
+- Real-time email processing (no polling)
+- Reduced API quota usage
+- Lower latency for email classification
+- Automatic unread tracking
+
+**File:** `agent_platform/webhooks/webhook_service.py:1`
+
+### 11. Thread Management
+
+Email threading groups related emails into conversations:
+
+```python
+from agent_platform.threads import ThreadService
+
+thread_service = ThreadService()
+
+# Get thread with all emails
+thread = await thread_service.get_thread(
+    account_id="gmail_1",
+    thread_id="thread_abc123"
+)
+
+# Thread includes:
+# - All emails in conversation
+# - Participants list
+# - Subject line
+# - Date range
+# - Attachment count
+```
+
+**File:** `agent_platform/threads/thread_service.py:1`
+
+### 12. Attachment Handling
+
+Download and store email attachments with metadata:
+
+```python
+from agent_platform.attachments import AttachmentService
+
+attachment_service = AttachmentService()
+
+# Download attachment
+file_path = await attachment_service.download_attachment(
+    account_id="gmail_1",
+    message_id="msg_123",
+    attachment_id="att_456"
+)
+
+# Get attachment metadata
+metadata = await attachment_service.get_attachment_metadata(
+    attachment_id="att_456"
+)
+```
+
+**Storage:** Attachments stored in `attachments/` directory with unique IDs
+
+**File:** `agent_platform/attachments/attachment_service.py:1`
+
 ## Database Access Patterns
 
 Use context manager for database sessions:
@@ -528,17 +810,32 @@ for email in emails:
 
 ## Common Pitfalls
 
-1. **Ensemble vs Legacy:** Always use `EnsembleClassifier` for new code unless specifically testing legacy behavior
+1. **PYTHONPATH=. is REQUIRED:** All Python scripts must be run with `PYTHONPATH=.` prefix from the `agent-platform/` directory
+   ```bash
+   # ✅ CORRECT
+   PYTHONPATH=. python scripts/operations/run_classifier.py
 
-2. **Event Logging:** ALWAYS log events after actions. Missing event logs break the Digital Twin architecture.
+   # ❌ WRONG - Will fail with import errors
+   python scripts/operations/run_classifier.py
+   ```
 
-3. **Database Sessions:** Always use `with get_db() as db:` pattern, never create sessions manually
+2. **Working Directory:** Always run commands from `agent-platform/` root, not from subdirectories
 
-4. **Pydantic Models:** When defining structured outputs, use Field descriptions - they're included in LLM prompts
+3. **Ensemble vs Legacy:** Always use `EnsembleClassifier` for new code unless specifically testing legacy behavior
 
-5. **Smart LLM Skip:** Only works with `EnsembleClassifier(smart_llm_skip=True)`, not with legacy classifier
+4. **Event Logging:** ALWAYS log events after actions. Missing event logs break the Digital Twin architecture
 
-6. **Async/Await:** All classification and extraction operations are async. Don't forget `await`.
+5. **Database Sessions:** Always use `with get_db() as db:` pattern, never create sessions manually
+
+6. **Pydantic Models:** When defining structured outputs, use Field descriptions - they're included in LLM prompts
+
+7. **Smart LLM Skip:** Only works with `EnsembleClassifier(smart_llm_skip=True)`, not with legacy classifier
+
+8. **Async/Await:** All classification and extraction operations are async. Don't forget `await`
+
+9. **Web Cockpit + API:** Both must be running simultaneously. API on port 8000, Frontend on port 3000
+
+10. **REQ-001 Storage:** All emails are stored with `storage_level='full'` - no conditional storage logic
 
 ## Testing Strategy
 
@@ -559,11 +856,17 @@ for email in emails:
 - Test complete workflows
 
 **File Locations:**
-- `tests/classification/` - Classification unit tests
-- `tests/integration/` - Integration tests
-- `tests/extraction/` - Extraction tests
-- `tests/events/` - Event system tests
-- `tests/memory/` - Memory system tests
+- `tests/classification/` - Classification unit tests (30 tests)
+- `tests/integration/` - Integration tests (18 tests)
+- `tests/extraction/` - Extraction tests (7 tests)
+- `tests/events/` - Event system tests (10 tests)
+- `tests/memory/` - Memory system tests (15 tests)
+- `tests/history_scan/` - History scan tests (Phase 5)
+- `tests/webhooks/` - Webhook tests (Phase 5)
+- `tests/threads/` - Thread tests (Phase 5)
+- `tests/attachments/` - Attachment tests (Phase 5)
+
+**Total:** 188 test functions, all passing ✅ (as of Phase 5)
 
 ## Code Quality Guidelines
 
@@ -638,6 +941,37 @@ agent_platform/
 │   ├── queue_manager.py          # Queue management
 │   └── digest_generator.py       # Daily digest
 │
+├── history_scan/             # Phase 5: History Scan
+│   ├── history_scan_service.py   # Mailbox history analysis
+│   └── models.py                 # History scan models
+│
+├── webhooks/                 # Phase 5: Webhooks
+│   ├── webhook_service.py        # Gmail Push Notifications
+│   └── models.py                 # Webhook models
+│
+├── threads/                  # Phase 5: Email Threading
+│   ├── thread_service.py         # Thread management
+│   └── models.py                 # Thread models
+│
+├── attachments/              # Phase 5: Attachment Handling
+│   ├── attachment_service.py     # Download & storage
+│   └── models.py                 # Attachment models
+│
+├── api/                      # FastAPI Backend
+│   ├── main.py                   # FastAPI app
+│   ├── dependencies.py           # Dependency injection
+│   └── routes/                   # API routes
+│       ├── tasks.py              # Task endpoints
+│       ├── decisions.py          # Decision endpoints
+│       ├── questions.py          # Question endpoints
+│       ├── threads.py            # Thread endpoints
+│       ├── attachments.py        # Attachment endpoints
+│       ├── history_scan.py       # History scan endpoints
+│       ├── webhooks.py           # Webhook endpoints
+│       ├── review_queue.py       # Review queue endpoints
+│       ├── dashboard.py          # Dashboard endpoints
+│       └── email_agent.py        # Email agent endpoints
+│
 ├── llm/                      # LLM Provider Abstraction
 │   └── providers.py              # Ollama + OpenAI
 │
@@ -648,17 +982,60 @@ agent_platform/
 └── core/                     # Core Configuration
     └── config.py                 # Configuration constants
 
-tests/                        # 80+ test functions
-├── classification/           # Classification tests
-├── integration/              # Integration tests
-├── extraction/               # Extraction tests
-├── events/                   # Event system tests
-└── memory/                   # Memory system tests
+web/
+└── cockpit/                  # Next.js Frontend
+    ├── src/
+    │   ├── app/                  # Next.js App Router pages
+    │   │   ├── page.tsx          # Dashboard
+    │   │   ├── email-agent/      # Email agent pages
+    │   │   ├── tasks/            # Task management
+    │   │   ├── decisions/        # Decision management
+    │   │   ├── questions/        # Question management
+    │   │   ├── threads/          # Thread view
+    │   │   └── history-scan/     # History scan UI
+    │   ├── components/           # React components
+    │   │   ├── layout/           # Layout components
+    │   │   └── ui/               # UI components
+    │   └── lib/                  # Libraries
+    │       ├── api/              # API client & queries
+    │       └── types/            # TypeScript types
+    ├── package.json
+    └── tsconfig.json
+
+tests/                        # 188 test functions (Phase 5)
+├── classification/           # Classification tests (30 tests)
+├── integration/              # Integration tests (18 tests)
+├── extraction/               # Extraction tests (7 tests)
+├── events/                   # Event system tests (10 tests)
+├── memory/                   # Memory system tests (15 tests)
+├── history_scan/             # History scan tests (Phase 5)
+├── webhooks/                 # Webhook tests (Phase 5)
+├── threads/                  # Thread tests (Phase 5)
+└── attachments/              # Attachment tests (Phase 5)
+
+scripts/
+├── setup/                    # Setup & initialization
+│   ├── init_database.py
+│   └── verify_db.py
+├── testing/                  # Connection tests
+│   ├── test_gmail_auth.py
+│   └── test_all_connections.py
+├── operations/               # Operational scripts
+│   ├── run_classifier.py
+│   ├── run_full_workflow.py
+│   ├── run_journal_generator.py
+│   └── analyze_mailbox_history.py
+└── test_real_world_history_scan.py  # Phase 5 real-world testing
+
+Total: ~12,000+ lines production code + 4,000+ lines tests
 ```
 
-## Next Steps (Post-Phase 2)
+## Next Steps (Post-Phase 5)
 
-See [PROJECT_SCOPE.md](PROJECT_SCOPE.md) and [docs/VISION.md](docs/VISION.md) for:
-- Phase 3: Twin Core (Proactive suggestions)
-- Phase 4: Additional modules (Calendar, Finance, etc.)
-- Phase 5: Cross-domain intelligence
+**Phase 5 Complete** ✅ - History Scan, Webhooks, Threads, Attachments, Web Cockpit
+
+See [PROJECT_SCOPE.md](PROJECT_SCOPE.md) and [docs/VISION.md](docs/VISION.md) for future phases:
+- Phase 6: Advanced HITL & Review System Enhancement
+- Phase 7: Twin Core (Proactive suggestions, Context tracking)
+- Phase 8: Additional modules (Calendar, Finance, Health, Knowledge)
+- Phase 9: Cross-domain intelligence & Multi-agent orchestration

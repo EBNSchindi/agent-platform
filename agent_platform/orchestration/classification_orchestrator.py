@@ -613,33 +613,19 @@ class ClassificationOrchestrator:
         """
         Determine storage level based on classification (Datenhaltungs-Strategie).
 
-        Rules:
-        - 'full': wichtig, action_required → Store everything (body + attachments + extractions)
-        - 'summary': nice_to_know → Store summary only (no body, metadata-only attachments)
-        - 'minimal': newsletter, spam, unwichtig, system_notifications → Store only metadata
+        REQ-001: Standardized Email Storage
+        All emails are now stored with 'full' storage level, regardless of category or importance.
+        This ensures complete data availability for all emails (body + attachments + extractions).
 
         Args:
-            category: Email category from classification
-            importance: Importance score (0.0-1.0)
-            confidence: Classification confidence (0.0-1.0)
+            category: Email category from classification (unused, kept for API compatibility)
+            importance: Importance score (0.0-1.0) (unused, kept for API compatibility)
+            confidence: Classification confidence (0.0-1.0) (unused, kept for API compatibility)
 
         Returns:
-            'full', 'summary', or 'minimal'
+            Always returns 'full'
         """
-        if category in ['wichtig', 'action_required']:
-            return 'full'
-        elif category == 'nice_to_know':
-            return 'summary'
-        elif category in ['newsletter', 'spam', 'system_notifications']:
-            return 'minimal'
-        else:
-            # Default fallback based on importance (for unknown categories)
-            if importance >= 0.7:
-                return 'full'
-            elif importance >= 0.4:
-                return 'summary'
-            else:
-                return 'minimal'
+        return 'full'
 
     def _get_label_for_category(self, category: str) -> str:
         """
