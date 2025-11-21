@@ -24,7 +24,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agent_platform.classification.unified_classifier import UnifiedClassifier
+from agent_platform.classification import UnifiedClassifier
 from agent_platform.classification.agents.orchestrator_agent import AgentBasedClassifier
 from agent_platform.classification.models import EmailToClassify
 from agent_platform.db.database import init_db

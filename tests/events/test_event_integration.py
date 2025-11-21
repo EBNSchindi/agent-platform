@@ -6,7 +6,7 @@ Tests that EMAIL_CLASSIFIED events are properly logged when emails are classifie
 
 import asyncio
 from agent_platform.classification.models import EmailToClassify
-from agent_platform.classification.unified_classifier import UnifiedClassifier
+from agent_platform.classification import UnifiedClassifier
 from agent_platform.events import get_events, EventType
 
 

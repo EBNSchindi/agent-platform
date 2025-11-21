@@ -212,6 +212,11 @@ Boss""",
 
     async def test_event_logging(self):
         """Test that extraction events are properly logged"""
+        from datetime import datetime, timedelta
+
+        # Record start time for filtering events
+        test_start_time = datetime.utcnow()
+
         email = EmailToClassify(
             email_id="test_event_logging_001",
             subject="Test Email for Event Logging",
@@ -226,10 +231,11 @@ Boss""",
         # Wait a moment for events to be logged
         await asyncio.sleep(0.1)
 
-        # Check EMAIL_ANALYZED event
+        # Check EMAIL_ANALYZED event (filter by start_time to only get events from THIS test run)
         analyzed_events = get_events(
             event_type=EventType.EMAIL_ANALYZED,
             email_id="test_event_logging_001",
+            start_time=test_start_time,
             limit=10
         )
         assert len(analyzed_events) >= 1, "Should log EMAIL_ANALYZED event"
@@ -240,21 +246,23 @@ Boss""",
         assert event.payload['decision_count'] == result.decision_count
         assert event.payload['question_count'] == result.question_count
 
-        # Check TASK_EXTRACTED events
+        # Check TASK_EXTRACTED events (filter by start_time)
         task_events = get_events(
             event_type=EventType.TASK_EXTRACTED,
             email_id="test_event_logging_001",
+            start_time=test_start_time,
             limit=10
         )
-        assert len(task_events) == result.task_count, "Should log one event per task"
+        assert len(task_events) == result.task_count, f"Should log one event per task (expected {result.task_count}, got {len(task_events)})"
 
-        # Check QUESTION_EXTRACTED events
+        # Check QUESTION_EXTRACTED events (filter by start_time)
         question_events = get_events(
             event_type=EventType.QUESTION_EXTRACTED,
             email_id="test_event_logging_001",
+            start_time=test_start_time,
             limit=10
         )
-        assert len(question_events) == result.question_count, "Should log one event per question"
+        assert len(question_events) == result.question_count, f"Should log one event per question (expected {result.question_count}, got {len(question_events)})"
 
         print(f"✅ Event logging verified:")
         print(f"   EMAIL_ANALYZED events: {len(analyzed_events)}")
