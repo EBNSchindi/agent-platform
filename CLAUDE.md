@@ -6,20 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Digital Twin Email Platform** - An intelligent email management system with Event-First Architecture and continuous learning. The system learns from user behavior to assist with email processing proactively.
 
-**Current Status:** Phase 5 COMPLETE ✅ (Documentation updates in progress)
+**Current Status:** Phase 6 COMPLETE ✅ (10-Category System with NLP Preferences)
 - ✅ Email Importance Classification (3-Layer: Rules → History → LLM)
 - ✅ Ensemble Classification System (Parallel 3-Layer + Weighted Scoring)
+- ✅ **10-Category Email Classification** (Primary + Secondary Categories)
+- ✅ **Sender Profile Management** (Whitelist/Blacklist, Trust Levels, Category Preferences)
+- ✅ **NLP Intent Parser** (Natural Language → Structured Preferences)
+- ✅ **Multi-Provider Support** (Gmail Multi-Label, IONOS Single-Folder)
 - ✅ Event-Log System (Foundation for Digital Twin)
 - ✅ Email Extraction (Tasks, Decisions, Questions)
 - ✅ Memory-Objects & Journal Generation
 - ✅ History Scan & Webhooks (Phase 5)
 - ✅ Thread Management & Attachments
 - ✅ FastAPI Backend + Next.js Web Cockpit
-- ✅ Integration Testing (134 test functions, 133 passing - 99.3% pass rate)
+- ✅ Integration Testing (200+ test functions, ~95% pass rate)
 
 **Important Documents:**
 - [PROJECT_SCOPE.md](PROJECT_SCOPE.md) - Quick Reference & Current Status
 - [docs/VISION.md](docs/VISION.md) - Big Picture & Long-term Roadmap
+- [docs/10_CATEGORY_SYSTEM.md](docs/10_CATEGORY_SYSTEM.md) - 10-Category Classification System Documentation
 
 ## Architecture Principles
 
