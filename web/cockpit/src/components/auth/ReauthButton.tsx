@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { LogIn, Loader2 } from 'lucide-react';
+import { Link2, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
-import { startOAuthFlow } from '@/lib/auth/oauth';
 
 interface ReauthButtonProps {
   accountId: string;
@@ -19,38 +18,28 @@ export function ReauthButton({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleReauth = async () => {
+  const handleGenerateLink = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Step 1: Get OAuth URL from backend
+      // Get OAuth URL from backend
       const response = await apiClient.get(
         `/auth/gmail/${accountId}/authorize`
       );
 
-      const { auth_url, state } = response.data;
+      const { auth_url } = response.data;
 
-      // Notify parent component about OAuth URL
+      // Notify parent component about OAuth URL (shows copy/open buttons)
       if (onOAuthUrlGenerated) {
         onOAuthUrlGenerated(auth_url);
       }
-
-      // Step 2: Start OAuth flow (opens popup)
-      const success = await startOAuthFlow(accountId, auth_url, state);
-
-      if (success) {
-        // Success - notify parent
-        onSuccess();
-      } else {
-        setError('Authentication was cancelled or failed');
-      }
     } catch (err: any) {
-      console.error('Re-authentication error:', err);
+      console.error('Failed to generate OAuth link:', err);
       setError(
         err.response?.data?.detail ||
           err.message ||
-          'Failed to start authentication'
+          'Failed to generate OAuth link'
       );
     } finally {
       setIsLoading(false);
@@ -60,19 +49,19 @@ export function ReauthButton({
   return (
     <div>
       <button
-        onClick={handleReauth}
+        onClick={handleGenerateLink}
         disabled={isLoading}
         className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
       >
         {isLoading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Authenticating...
+            Generating Link...
           </>
         ) : (
           <>
-            <LogIn className="h-4 w-4" />
-            Re-authenticate
+            <Link2 className="h-4 w-4" />
+            Get OAuth Link
           </>
         )}
       </button>

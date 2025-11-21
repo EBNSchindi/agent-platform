@@ -181,8 +181,7 @@ class EmailAccount(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     extra_metadata = Column(JSON, default={})
 
-    # Relationships
-    processed_emails = relationship("ProcessedEmail", back_populates="account", cascade="all, delete-orphan")
+    # Note: No relationship to ProcessedEmail - using dynamic account_id strings instead
 
     def __repr__(self):
         return f"<EmailAccount(account_id='{self.account_id}', email='{self.email_address}')>"
@@ -193,7 +192,7 @@ class ProcessedEmail(Base):
     __tablename__ = "processed_emails"
 
     id = Column(Integer, primary_key=True)
-    account_id = Column(Integer, ForeignKey("email_accounts.id"), nullable=False)
+    account_id = Column(String(100), nullable=False, index=True)  # gmail_account_1, gmail_account_2, etc.
     email_id = Column(String(200), nullable=False)  # Gmail message ID or IMAP UID
     message_id = Column(String(500), nullable=True)  # Email Message-ID header
     subject = Column(Text, nullable=True)
@@ -254,8 +253,7 @@ class ProcessedEmail(Base):
 
     extra_metadata = Column(JSON, default={})
 
-    # Relationships
-    account = relationship("EmailAccount", back_populates="processed_emails")
+    # Note: No relationship to EmailAccount - using dynamic account_id strings instead
 
     def __repr__(self):
         return f"<ProcessedEmail(email_id='{self.email_id}', category='{self.category}')>"
