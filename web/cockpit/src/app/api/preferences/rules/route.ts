@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     // Call Python backend API
     const backendResponse = await fetch(
-      `http://localhost:8000/api/preferences/rules?account_id=${account_id}`
+      `http://localhost:8000/api/nlp/rules?account_id=${account_id}`
     );
 
     if (!backendResponse.ok) {
