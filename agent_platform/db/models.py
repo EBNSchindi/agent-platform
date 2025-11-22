@@ -472,6 +472,7 @@ class ContactPreference(Base):
     # ========================================================================
     # METADATA
     # ========================================================================
+    last_contact_at = Column(DateTime, nullable=True, index=True)  # Most recent email (sent or received)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     extra_metadata = Column(JSON, default={})

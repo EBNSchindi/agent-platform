@@ -46,6 +46,9 @@ def run_migration():
                     CREATE TABLE contact_preferences (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
+                        -- Account identification
+                        account_id TEXT NOT NULL,
+
                         -- Contact identification
                         contact_email TEXT NOT NULL,
                         contact_domain TEXT NOT NULL,
@@ -56,7 +59,7 @@ def run_migration():
                         total_replies_sent INTEGER DEFAULT 0,
                         reply_rate REAL DEFAULT 0.0,
                         avg_time_to_reply_hours REAL,
-                        last_email_received_at TIMESTAMP,
+                        last_email_received TIMESTAMP,
 
                         -- OUTGOING EMAIL STATS (from me to this contact)
                         total_emails_sent INTEGER DEFAULT 0,
@@ -65,7 +68,7 @@ def run_migration():
                         initiation_rate REAL DEFAULT 0.0,
                         sent_reply_rate REAL DEFAULT 0.0,
                         avg_emails_sent_per_week REAL DEFAULT 0.0,
-                        last_email_sent_at TIMESTAMP,
+                        last_email_sent TIMESTAMP,
 
                         -- COMBINED METRICS
                         total_emails_exchanged INTEGER DEFAULT 0,
@@ -78,7 +81,6 @@ def run_migration():
                         category_distribution TEXT DEFAULT '{}',
 
                         -- Metadata
-                        first_contact_at TIMESTAMP,
                         last_contact_at TIMESTAMP,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -89,6 +91,11 @@ def run_migration():
 
                 # Create indices
                 print("   🔧 Creating indices...")
+
+                conn.execute(text("""
+                    CREATE INDEX idx_contact_preferences_account_id
+                    ON contact_preferences (account_id)
+                """))
 
                 conn.execute(text("""
                     CREATE INDEX idx_contact_preferences_contact_email
@@ -115,7 +122,7 @@ def run_migration():
                     ON contact_preferences (last_contact_at)
                 """))
 
-                print("   ✅ Created 5 indices")
+                print("   ✅ Created 6 indices")
 
             except Exception as e:
                 if "already exists" in str(e).lower():
@@ -138,34 +145,76 @@ def run_migration():
                 """))
 
                 if result.scalar() > 0:
-                    # Migrate data (only columns that exist in both tables)
-                    conn.execute(text("""
-                        INSERT INTO contact_preferences (
-                            contact_email,
-                            contact_domain,
-                            total_emails_received,
-                            total_replies_sent,
-                            reply_rate,
-                            avg_time_to_reply_hours,
-                            last_email_received,
-                            created_at,
-                            updated_at
-                        )
-                        SELECT
-                            sender_email,
-                            sender_domain,
-                            total_emails,
-                            total_replies,
-                            reply_rate,
-                            avg_time_to_reply_hours,
-                            last_seen_at,
-                            created_at,
-                            updated_at
-                        FROM sender_preferences
-                        WHERE sender_email NOT IN (
-                            SELECT contact_email FROM contact_preferences
-                        )
+                    # Check if sender_preferences has account_id column
+                    result = conn.execute(text("""
+                        SELECT COUNT(*) FROM pragma_table_info('sender_preferences')
+                        WHERE name='account_id'
                     """))
+                    has_account_id = result.scalar() > 0
+
+                    # Migrate data (only columns that exist in both tables)
+                    if has_account_id:
+                        # Migrate with account_id
+                        conn.execute(text("""
+                            INSERT INTO contact_preferences (
+                                account_id,
+                                contact_email,
+                                contact_domain,
+                                total_emails_received,
+                                total_replies_sent,
+                                reply_rate,
+                                avg_time_to_reply_hours,
+                                last_email_received,
+                                created_at,
+                                updated_at
+                            )
+                            SELECT
+                                account_id,
+                                sender_email,
+                                sender_domain,
+                                total_emails,
+                                total_replies,
+                                reply_rate,
+                                avg_time_to_reply_hours,
+                                last_seen_at,
+                                created_at,
+                                updated_at
+                            FROM sender_preferences
+                            WHERE sender_email NOT IN (
+                                SELECT contact_email FROM contact_preferences
+                            )
+                        """))
+                    else:
+                        # Migrate without account_id (use 'unknown' as default)
+                        conn.execute(text("""
+                            INSERT INTO contact_preferences (
+                                account_id,
+                                contact_email,
+                                contact_domain,
+                                total_emails_received,
+                                total_replies_sent,
+                                reply_rate,
+                                avg_time_to_reply_hours,
+                                last_email_received,
+                                created_at,
+                                updated_at
+                            )
+                            SELECT
+                                'gmail_1' as account_id,
+                                sender_email,
+                                sender_domain,
+                                total_emails,
+                                total_replies,
+                                reply_rate,
+                                avg_time_to_reply_hours,
+                                last_seen_at,
+                                created_at,
+                                updated_at
+                            FROM sender_preferences
+                            WHERE sender_email NOT IN (
+                                SELECT contact_email FROM contact_preferences
+                            )
+                        """))
 
                     result = conn.execute(text("""
                         SELECT COUNT(*) FROM contact_preferences
