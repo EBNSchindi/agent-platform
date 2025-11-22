@@ -580,6 +580,19 @@ class ClassificationOrchestrator:
         attachment_count = email.get('attachment_count', 0)
         attachments_metadata = email.get('attachments_metadata', {})
 
+        # Check if this is a response to MY meeting invitation (thread-based)
+        thread_id = email.get('threadId')
+        is_response_to_my_meeting, my_email = self._check_if_response_to_my_meeting(
+            thread_id=thread_id,
+            account_id=account_id,
+            category=category
+        )
+
+        # Boost importance if response to my meeting
+        if is_response_to_my_meeting:
+            importance = min(0.95, importance + 0.1)  # Boost but cap at 0.95
+            print(f"   📅 Response to MY meeting invitation → importance boosted to {importance:.2f}")
+
         processed_email = ProcessedEmail(
             account_id=db_account_id,
             email_id=email.get('id'),
@@ -587,9 +600,18 @@ class ClassificationOrchestrator:
             subject=email.get('subject'),
             received_at=email.get('received_at', datetime.utcnow()),
             processed_at=datetime.utcnow(),
+
+            # OLD System (deprecated, kept for backwards compatibility)
             category=category,
             importance_score=importance,
             classification_confidence=confidence,
+
+            # NEW 10-Category System (Phase 8)
+            primary_category=category,  # Use same category for new field
+            category_confidence=confidence,  # Map confidence to category_confidence
+            secondary_categories=[],  # No secondary categories yet
+
+            # Classification metadata
             llm_provider_used=llm_provider,
             rule_layer_hint=getattr(classification, 'reasoning', None) if layer_used == "rules" else None,
             history_layer_hint=getattr(classification, 'reasoning', None) if layer_used == "history" else None,
@@ -610,6 +632,8 @@ class ClassificationOrchestrator:
                 'processing_time_ms': getattr(classification, 'processing_time_ms', 0),
                 'reasoning': getattr(classification, 'reasoning', getattr(classification, 'combined_reasoning', '')),
                 'low_confidence': confidence < self.MEDIUM_CONFIDENCE_THRESHOLD,
+                'is_response_to_my_meeting': is_response_to_my_meeting,
+                'my_email_address': my_email if is_response_to_my_meeting else None,
             }
         )
 
@@ -663,6 +687,61 @@ class ClassificationOrchestrator:
             "system_notifications": "🔔 System",
         }
         return label_map.get(category, "❓ Uncategorized")
+
+    def _check_if_response_to_my_meeting(
+        self,
+        thread_id: Optional[str],
+        account_id: str,
+        category: str
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Check if this email is a response to MY meeting invitation.
+
+        For meeting responses (termine category with thread_id), checks if:
+        1. Email is part of a thread
+        2. Thread contains an email sent BY me (sender == account email)
+        3. If yes, this is a response to MY invitation → higher importance
+
+        Args:
+            thread_id: Gmail thread ID
+            account_id: Account ID (e.g., 'gmail_1')
+            category: Classified category
+
+        Returns:
+            Tuple of (is_response_to_my_meeting, my_email_address)
+        """
+        # Only check for meeting/appointment emails
+        if category != "termine" or not thread_id:
+            return False, None
+
+        try:
+            # Get account email address
+            from agent_platform.core.account_registry import AccountRegistry
+            registry = AccountRegistry()
+            account_info = registry.get_account(account_id)
+
+            if not account_info or not account_info.email:
+                return False, None
+
+            my_email = account_info.email.lower()
+
+            # Search for emails in this thread sent by me
+            thread_emails = self.db.query(ProcessedEmail).filter(
+                ProcessedEmail.thread_id == thread_id,
+                ProcessedEmail.account_id == account_id
+            ).all()
+
+            # Check if any email in thread was sent by me
+            for email in thread_emails:
+                if email.sender and my_email in email.sender.lower():
+                    # Found email sent by me in this thread
+                    return True, my_email
+
+            return False, my_email
+
+        except Exception as e:
+            print(f"⚠️  Error checking meeting response: {e}")
+            return False, None
 
     def _print_stats(self, stats: EmailProcessingStats):
         """Print processing statistics."""

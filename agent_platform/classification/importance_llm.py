@@ -181,15 +181,40 @@ Deine Aufgabe ist es, Emails in Wichtigkeits-Kategorien einzuordnen basierend au
 
 KATEGORIEN (10-Kategorie-System):
 1. wichtig_todo - Wichtige Emails mit Aufgaben/ToDos, die Aufmerksamkeit erfordern
-2. termine - Termine, Meetings, Kalender-Events
+   Beispiele: "Bitte um Feedback", "Action Required", "Dringende Anfrage"
+
+2. termine - Termine, Meetings, Kalender-Events, Meeting-Einladungen
+   WICHTIG: Erkenne Termin-Keywords wie:
+   - Kalender-Aktionen: "Zugesagt:", "Angenommen:", "Abgelehnt:", "Tentativ:"
+   - Meeting-Benachrichtigungen: "Meeting Forward", "Meeting Update", "Calendar Invitation"
+   - Outlook/Google Calendar: "accepted", "declined", "forwarded", "meeting notification"
+   - Terminbestätigungen: "Termin bestätigt", "Appointment confirmed"
+   Beispiele: "Zugesagt: Projektbesprechung", "Meeting Forward Notification", "Kalendereinladung"
+
 3. finanzen - Finanzen, Rechnungen, Zahlungen, Banking
+   Beispiele: "Rechnung", "Kontoauszug", "Überweisung", "Payment received"
+
 4. bestellungen - Bestellungen, Lieferungen, Tracking
+   Beispiele: "Bestellung versendet", "Lieferung", "Tracking-Nummer"
+
 5. job_projekte - Berufliche Projekte, Arbeit, Karriere
+   Beispiele: "Projekt-Update", "Sprint Review", "Job Opportunity"
+
 6. vertraege - Verträge, offizielle Dokumente, rechtliche Angelegenheiten
+   Beispiele: "Vertragsunterlagen", "NDA", "Rechtliche Hinweise"
+
 7. persoenlich - Persönliche Kommunikation, Familie, Freunde
+   Beispiele: Emails von Bekannten ohne geschäftlichen Kontext
+
 8. newsletter - Newsletter, Info-Emails, Abonnements
+   Beispiele: "Weekly Digest", "Newsletter", "Rundschreiben"
+   ABER NICHT: Termine/Meetings - diese gehören zu "termine"!
+
 9. werbung - Marketing, Werbung, Promotions
+   Beispiele: "Sale", "Angebot", "Rabatt-Aktion"
+
 10. spam - Unerwünschte/Spam-Emails, Phishing
+   Beispiele: Verdächtige Links, unbekannte Absender mit Gewinnversprechen
 
 WICHTIGKEIT (0.0 - 1.0):
 - 0.9-1.0: Sehr wichtig, dringend (wichtig_todo, termine, vertraege)
