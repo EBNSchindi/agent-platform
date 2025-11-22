@@ -1,18 +1,24 @@
 """
 History-Based Importance Classification Layer
 
-Learns from user behavior patterns stored in sender_preferences and
-domain_preferences tables. NO LLM calls - pure database lookups.
+Learns from BIDIRECTIONAL user behavior patterns stored in contact_preferences table.
+NO LLM calls - pure database lookups.
+
+Key Improvements (Bidirectional Tracking):
+- Tracks BOTH incoming (received) and outgoing (sent) emails
+- Uses contact_importance (weighted: 40% outgoing, 30% reply, 20% initiation, 10% incoming)
+- Considers relationship_type (proactive, reactive, bidirectional, one_way_*)
 
 High confidence when:
-- Sender has >= 5 historical emails with clear patterns (confidence: 0.85)
+- Contact has >= 5 total exchanged emails with clear patterns (confidence: 0.85)
 - Domain has >= 10 historical emails with clear patterns (confidence: 0.75)
 
-Uses metrics:
-- Reply rate (% of emails replied to)
-- Archive rate (% of emails archived without reply)
-- Delete rate (% of emails deleted)
-- Average time to reply (urgency indicator)
+Uses bidirectional metrics:
+- Reply rate (% of their emails I reply to)
+- Initiation rate (% of emails where I start conversation)
+- Sent reply rate (% of my emails they reply to)
+- Contact importance (weighted combination)
+- Relationship type (proactive/reactive/bidirectional/one_way)
 """
 
 from typing import Optional, Tuple
@@ -22,7 +28,7 @@ from agent_platform.classification.models import (
     HistoryLayerResult,
     ImportanceCategory,
 )
-from agent_platform.db.models import SenderPreference, DomainPreference
+from agent_platform.db.models import ContactPreference, SenderPreference, DomainPreference
 from agent_platform.db.database import get_db
 
 
@@ -99,9 +105,16 @@ class HistoryLayer:
         sender_domain = self._extract_domain(sender_email)
 
         # ====================================================================
-        # STEP 1: Check sender-specific preferences (highest priority)
+        # STEP 1: Check contact preferences (bidirectional - highest priority)
         # ====================================================================
 
+        contact_pref = self._get_contact_preference(account_id, sender_email)
+
+        if contact_pref and contact_pref.total_emails_exchanged >= self.MIN_EMAILS_HIGH_CONFIDENCE_SENDER:
+            # We have enough bidirectional data for high confidence
+            return self._classify_from_contact_preference(contact_pref, email)
+
+        # FALLBACK: Try legacy SenderPreference (for backwards compatibility)
         sender_pref = self._get_sender_preference(account_id, sender_email)
 
         if sender_pref and sender_pref.total_emails_received >= self.MIN_EMAILS_HIGH_CONFIDENCE_SENDER:
@@ -137,7 +150,7 @@ class HistoryLayer:
                 total_historical_emails=pref.total_emails_received if pref else 0,
                 importance=0.5,  # Neutral importance
                 confidence=0.4,  # Low-medium confidence (not enough data)
-                category="nice_to_know",
+                category="newsletter",  # Neutral fallback
                 reasoning=f"Insufficient historical data ({pref.total_emails_received if pref else 0} emails) for confident classification",
                 data_source=data_source,
             )
@@ -153,7 +166,7 @@ class HistoryLayer:
             total_historical_emails=0,
             importance=0.5,  # Neutral
             confidence=0.2,  # Very low confidence - needs LLM layer
-            category="nice_to_know",
+            category="newsletter",  # Neutral fallback
             reasoning="No historical data available - first email from this sender/domain",
             data_source="default",
         )
@@ -162,10 +175,30 @@ class HistoryLayer:
     # DATABASE QUERY METHODS
     # ========================================================================
 
+    def _get_contact_preference(
+        self, account_id: str, contact_email: str
+    ) -> Optional[ContactPreference]:
+        """Get contact preference (bidirectional) from database."""
+        if not self.db:
+            return None
+
+        try:
+            return (
+                self.db.query(ContactPreference)
+                .filter(
+                    ContactPreference.account_id == account_id,
+                    ContactPreference.contact_email == contact_email
+                )
+                .first()
+            )
+        except Exception as e:
+            print(f"⚠️  Error querying contact preference: {e}")
+            return None
+
     def _get_sender_preference(
         self, account_id: str, sender_email: str
     ) -> Optional[SenderPreference]:
-        """Get sender preference from database."""
+        """Get sender preference from database (legacy fallback)."""
         if not self.db:
             return None
 
@@ -206,11 +239,74 @@ class HistoryLayer:
     # CLASSIFICATION FROM PREFERENCES
     # ========================================================================
 
+    def _classify_from_contact_preference(
+        self, pref: ContactPreference, email: EmailToClassify
+    ) -> HistoryLayerResult:
+        """
+        Classify based on BIDIRECTIONAL contact history.
+
+        Uses both incoming and outgoing email patterns for higher accuracy.
+        Considers:
+        - Contact importance (weighted: 40% outgoing, 30% reply, 20% initiation, 10% incoming)
+        - Relationship type (proactive, reactive, bidirectional, one_way_*)
+        - Reply patterns (both directions)
+        """
+        # Use contact_importance directly (already calculated with bidirectional weights)
+        importance = pref.contact_importance
+
+        # Boost importance for proactive/bidirectional relationships
+        relationship_boost = {
+            "proactive": 0.1,       # I initiate a lot → important contact
+            "bidirectional": 0.05,  # Active communication → moderately important
+            "reactive": 0.0,        # I only reply → use base importance
+            "one_way_incoming": -0.1,  # They spam, I don't reply → less important
+            "one_way_outgoing": 0.0,   # I reach out, they don't reply → neutral
+        }
+        importance += relationship_boost.get(pref.relationship_type, 0.0)
+        importance = max(0.0, min(1.0, importance))  # Clamp to [0, 1]
+
+        # Map importance to category
+        category, category_reasoning = self._map_importance_to_category(
+            importance=importance,
+            reply_rate=pref.reply_rate,
+            relationship_type=pref.relationship_type,
+        )
+
+        # High confidence for bidirectional data
+        confidence = self._calculate_confidence(
+            total_emails=pref.total_emails_exchanged,
+            base_confidence=self.SENDER_BASE_CONFIDENCE,
+            is_sender_level=True,
+        )
+
+        # Build reasoning string
+        reasoning_parts = [
+            f"{pref.total_emails_exchanged} exchanged",
+            f"{pref.total_emails_received} received, {pref.total_emails_sent} sent",
+            f"{pref.relationship_type} relationship",
+            category_reasoning,
+        ]
+
+        return HistoryLayerResult(
+            sender_email=pref.contact_email,
+            sender_domain=pref.contact_domain,
+            sender_preference_found=True,  # Using contact pref
+            domain_preference_found=False,
+            historical_reply_rate=pref.reply_rate,
+            historical_archive_rate=0.0,  # Not tracked in ContactPreference
+            total_historical_emails=pref.total_emails_exchanged,
+            importance=importance,
+            confidence=confidence,
+            category=category,
+            reasoning=f"Bidirectional history: {', '.join(reasoning_parts)}",
+            data_source="contact",  # New data source type
+        )
+
     def _classify_from_sender_preference(
         self, pref: SenderPreference, email: EmailToClassify
     ) -> HistoryLayerResult:
         """
-        Classify based on sender-specific historical data.
+        Classify based on sender-specific historical data (LEGACY fallback).
 
         High confidence classification based on reply/archive patterns.
         """
@@ -305,25 +401,25 @@ class HistoryLayer:
         if reply_rate >= self.HIGH_REPLY_RATE:
             # Very responsive to this sender
             if avg_time_to_reply and avg_time_to_reply < 2.0:  # < 2 hours
-                # Quick replies → action required
+                # Quick replies → wichtig_todo (important with action)
                 return (
                     0.9,
-                    "action_required",
+                    "wichtig_todo",
                     f"{reply_rate:.0%} reply rate, avg {avg_time_to_reply:.1f}h response time"
                 )
             else:
                 # Regular replies → important
                 return (
                     0.8,
-                    "wichtig",
+                    "wichtig_todo",
                     f"{reply_rate:.0%} reply rate (consistently responded to)"
                 )
 
-        # Medium reply rate → nice to know
+        # Medium reply rate → persoenlich (personal/occasional communication)
         elif reply_rate >= self.MEDIUM_REPLY_RATE:
             return (
                 0.5,
-                "nice_to_know",
+                "persoenlich",  # Personal communication category
                 f"{reply_rate:.0%} reply rate (occasionally responded to)"
             )
 
@@ -343,11 +439,11 @@ class HistoryLayer:
                 f"{delete_rate:.0%} deleted (likely unwanted)"
             )
 
-        # Low engagement overall → system notifications or low priority
+        # Low engagement overall → newsletter or low priority
         else:
             return (
                 0.4,
-                "system_notifications",
+                "newsletter",
                 f"Low engagement ({reply_rate:.0%} reply, {archive_rate:.0%} archive)"
             )
 
@@ -379,3 +475,54 @@ class HistoryLayer:
         if "@" in email:
             return email.split("@")[1].lower()
         return email.lower()
+
+    def _map_importance_to_category(
+        self,
+        importance: float,
+        reply_rate: float,
+        relationship_type: str,
+    ) -> Tuple[ImportanceCategory, str]:
+        """
+        Map importance score to category based on bidirectional metrics.
+
+        Args:
+            importance: Contact importance score (0.0-1.0)
+            reply_rate: Reply rate (0.0-1.0)
+            relationship_type: Relationship type (proactive, reactive, etc.)
+
+        Returns:
+            (category, reasoning)
+        """
+        # Very high importance (>=0.8) → wichtig_todo
+        if importance >= 0.8:
+            if relationship_type == "proactive":
+                return "wichtig_todo", "high importance, I initiate frequently"
+            elif reply_rate > 0.7:
+                return "wichtig_todo", "high importance, very responsive"
+            else:
+                return "job_projekte", "high importance, work-related contact"
+
+        # High importance (0.6-0.8) → job_projekte or persoenlich
+        elif importance >= 0.6:
+            if relationship_type in ["proactive", "bidirectional"]:
+                return "job_projekte", "regular active communication"
+            else:
+                return "persoenlich", "moderate importance, personal contact"
+
+        # Medium importance (0.4-0.6) → persoenlich
+        elif importance >= 0.4:
+            return "persoenlich", "moderate importance, occasional communication"
+
+        # Low importance (0.2-0.4) → newsletter
+        elif importance >= 0.2:
+            if relationship_type == "one_way_incoming":
+                return "newsletter", "low importance, one-way communication"
+            else:
+                return "newsletter", "low importance, infrequent contact"
+
+        # Very low importance (<0.2) → newsletter or spam
+        else:
+            if relationship_type == "one_way_incoming" and reply_rate < 0.1:
+                return "spam", "very low importance, never replied"
+            else:
+                return "newsletter", "very low importance"

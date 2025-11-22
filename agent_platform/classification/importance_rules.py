@@ -110,6 +110,30 @@ class RuleLayer:
     ]
 
     # ========================================================================
+    # MEETING/APPOINTMENT PATTERNS
+    # ========================================================================
+
+    MEETING_SUBJECT_PATTERNS = [
+        r"^(zugesagt|angenommen|abgelehnt|tentativ):",  # Outlook calendar responses
+        r"^(accepted|declined|tentative):",
+        r"meeting forward",
+        r"calendar (invitation|invite)",
+        r"kalendereinladung",
+        r"terminbestätigung",
+    ]
+
+    MEETING_KEYWORDS = [
+        # German
+        "zugesagt:", "angenommen:", "abgelehnt:", "tentativ:",
+        "meeting forward", "calendar", "kalender",
+        "terminbestätigung", "termin bestätigt",
+
+        # English
+        "accepted:", "declined:", "tentative:",
+        "meeting notification", "appointment", "calendar invitation",
+    ]
+
+    # ========================================================================
     # SYSTEM NOTIFICATION PATTERNS
     # ========================================================================
 
@@ -150,6 +174,11 @@ class RuleLayer:
         self.auto_reply_subjects = [
             re.compile(pattern, re.IGNORECASE)
             for pattern in self.AUTO_REPLY_SUBJECTS
+        ]
+
+        self.meeting_subject_patterns = [
+            re.compile(pattern, re.IGNORECASE)
+            for pattern in self.MEETING_SUBJECT_PATTERNS
         ]
 
         self.newsletter_sender_patterns = [
@@ -209,7 +238,26 @@ class RuleLayer:
                 )
 
         # ====================================================================
-        # CHECK 2: AUTO-REPLY DETECTION (Confidence: 0.70 - lowered for learning)
+        # CHECK 2: MEETING/APPOINTMENT DETECTION (Confidence: 0.90 - high priority)
+        # ====================================================================
+
+        meeting_score, meeting_matches = self._check_meeting_patterns(email, text)
+        if meeting_score >= 2:  # Strong meeting signal
+            matched_rules.append("meeting_detection")
+
+            return RuleLayerResult(
+                matched_rules=matched_rules,
+                importance=0.9,  # Meetings are high importance
+                confidence=0.90,  # High confidence for calendar notifications
+                category="termine",
+                reasoning=f"Meeting/Calendar notification detected: {', '.join(meeting_matches[:2])}",
+                spam_signals=spam_signals,
+                auto_reply_signals=[],
+                newsletter_signals=[],
+            )
+
+        # ====================================================================
+        # CHECK 3: AUTO-REPLY DETECTION (Confidence: 0.70 - lowered for learning)
         # ====================================================================
 
         auto_reply_score, auto_matches = self._check_auto_reply_patterns(email, text)
@@ -222,7 +270,7 @@ class RuleLayer:
                     matched_rules=matched_rules,
                     importance=0.1,
                     confidence=0.70,  # ❗ LOWERED from 0.90 → more emails to History/LLM
-                    category="system_notifications",
+                    category="newsletter",  # Auto-replies are informational
                     reasoning=f"Likely auto-reply (check history): {', '.join(auto_matches)}",
                     spam_signals=spam_signals,
                     auto_reply_signals=auto_reply_signals,
@@ -230,7 +278,7 @@ class RuleLayer:
                 )
 
         # ====================================================================
-        # CHECK 3: NEWSLETTER DETECTION (Confidence: 0.65 - lowered for learning)
+        # CHECK 4: NEWSLETTER DETECTION (Confidence: 0.65 - lowered for learning)
         # ====================================================================
 
         newsletter_score, newsletter_matches = self._check_newsletter_patterns(email, text)
@@ -251,7 +299,7 @@ class RuleLayer:
                 )
 
         # ====================================================================
-        # CHECK 4: SYSTEM NOTIFICATION (Confidence: 0.50 - very low, let LLM decide)
+        # CHECK 5: SYSTEM NOTIFICATION (Confidence: 0.50 - very low, let LLM decide)
         # ====================================================================
 
         system_score, system_matches = self._check_system_notification_patterns(email, text)
@@ -262,7 +310,7 @@ class RuleLayer:
                 matched_rules=matched_rules,
                 importance=0.4,
                 confidence=0.50,  # ❗ LOWERED from 0.80 → LLM/History decides importance
-                category="system_notifications",
+                category="newsletter",  # System notifications (password resets, confirmations) are informational
                 reasoning=f"Possible system notification (pass to LLM): {', '.join(system_matches[:2])}",
                 spam_signals=spam_signals,
                 auto_reply_signals=auto_reply_signals,
@@ -279,7 +327,7 @@ class RuleLayer:
                 matched_rules=matched_rules or ["no_clear_pattern"],
                 importance=0.5,  # Neutral importance
                 confidence=0.3,  # Low confidence - needs next layer
-                category="nice_to_know",  # Default category
+                category="newsletter",  # Default category (neutral fallback)
                 reasoning="Weak patterns detected, needs deeper analysis",
                 spam_signals=spam_signals,
                 auto_reply_signals=auto_reply_signals,
@@ -291,7 +339,7 @@ class RuleLayer:
             matched_rules=["no_pattern_match"],
             importance=0.5,  # Neutral
             confidence=0.2,  # Very low confidence - definitely needs next layer
-            category="nice_to_know",
+            category="newsletter",  # Default fallback
             reasoning="No clear rule patterns matched",
             spam_signals=[],
             auto_reply_signals=[],
@@ -391,6 +439,34 @@ class RuleLayer:
                 score += 2
                 matches.append(f"sender:{pattern.pattern}")
                 break
+
+        return score, matches
+
+    def _check_meeting_patterns(
+        self, email: EmailToClassify, text: str
+    ) -> Tuple[int, List[str]]:
+        """
+        Check for meeting/appointment patterns.
+
+        Returns:
+            (meeting_score, matched_patterns)
+            Score >= 2 = high confidence meeting
+        """
+        score = 0
+        matches = []
+
+        # Check subject patterns (calendar responses, meeting forwards)
+        for pattern in self.meeting_subject_patterns:
+            if pattern.search(email.subject):
+                score += 3  # Very strong signal from subject
+                matches.append(f"subject_pattern:{pattern.pattern}")
+                break  # Only count once
+
+        # Check meeting keywords
+        for keyword in self.MEETING_KEYWORDS:
+            if keyword in text:
+                score += 1
+                matches.append(f"keyword:{keyword}")
 
         return score, matches
 

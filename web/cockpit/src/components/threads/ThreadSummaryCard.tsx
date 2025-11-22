@@ -112,7 +112,7 @@ export function ThreadSummaryCard({ threadId, accountId }: ThreadSummaryCardProp
             <div className="space-y-2">
               {summary.emails.map((email, index) => (
                 <div
-                  key={email.email_id}
+                  key={email.id || email.email_id || index}
                   className="flex items-start gap-2 text-xs"
                 >
                   <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${

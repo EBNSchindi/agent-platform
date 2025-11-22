@@ -382,10 +382,10 @@ class LegacyClassifier:
         Returns True if:
         - High confidence (>= 0.85)
         - High importance (> 0.7)
-        - Category is "action_required" or "wichtig"
+        - Category is important (wichtig_todo, termine, vertraege, etc.)
         """
         return (
             result.confidence >= self.thresholds.high_confidence_threshold
             and result.importance > self.thresholds.high_importance_threshold
-            and result.category in ["action_required", "wichtig"]
+            and result.category in ["wichtig_todo", "termine", "vertraege", "finanzen", "job_projekte"]
         )
