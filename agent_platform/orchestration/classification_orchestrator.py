@@ -37,6 +37,7 @@ from agent_platform.classification import (
 from agent_platform.core.config import Config
 from agent_platform.extraction import ExtractionAgent
 from agent_platform.review import ReviewQueueManager
+from agent_platform.feedback.contact_preference_tracker import ContactPreferenceTracker
 
 
 class EmailProcessingStats(BaseModel):
@@ -147,6 +148,7 @@ class ClassificationOrchestrator:
         self.extraction_agent = ExtractionAgent()
         self.queue_manager = ReviewQueueManager(db=self.db)
         self.gmail_service = gmail_service  # Phase 2: Gmail automation
+        self.contact_tracker = ContactPreferenceTracker()  # Bidirectional contact tracking
 
     def __del__(self):
         """Clean up database session if we created it."""
@@ -262,6 +264,16 @@ class ClassificationOrchestrator:
         # Step 1: Classify email
         print(f"   🔍 Classifying...")
         classification = await self.classifier.classify(email_to_classify)
+
+        # Track incoming email for bidirectional contact preference
+        sender_domain = sender.split('@')[1] if '@' in sender else sender
+        sender_name = email.get('sender_name') or sender.split('@')[0]  # Extract name if available
+        self.contact_tracker.track_incoming_email(
+            account_id=account_id,
+            sender_email=sender.lower(),
+            sender_domain=sender_domain.lower(),
+            sender_name=sender_name,
+        )
 
         # Extract attributes (supports both Ensemble and Legacy)
         category, importance, confidence = self._get_classification_attrs(classification)

@@ -397,6 +397,89 @@ class DomainPreference(Base):
         return f"<DomainPreference(domain='{self.domain}', importance={self.average_importance:.2f})>"
 
 
+class ContactPreference(Base):
+    """
+    Bidirectional contact preferences (incoming + outgoing emails).
+
+    Tracks both:
+    - Emails RECEIVED from this contact (incoming)
+    - Emails SENT to this contact (outgoing)
+
+    This provides a stronger signal for importance:
+    - High outgoing + high incoming → Very important contact
+    - High outgoing + low incoming → Proactive relationship (I initiate)
+    - Low outgoing + high incoming → Reactive relationship (I only respond)
+    """
+    __tablename__ = "contact_preferences"
+
+    id = Column(Integer, primary_key=True)
+    account_id = Column(String(100), nullable=False, index=True)
+
+    # Contact identification
+    contact_email = Column(String(200), nullable=False, index=True)
+    contact_domain = Column(String(200), nullable=False, index=True)
+    contact_name = Column(String(200), nullable=True)
+
+    # ========================================================================
+    # INCOMING EMAIL STATS (from contact to me)
+    # ========================================================================
+    total_emails_received = Column(Integer, default=0)
+    total_replies_sent = Column(Integer, default=0)  # How often I reply
+    total_received_archived = Column(Integer, default=0)
+    total_received_deleted = Column(Integer, default=0)
+
+    reply_rate = Column(Float, default=0.0)  # % of received emails I reply to
+    avg_time_to_reply_hours = Column(Float, nullable=True)
+    last_email_received = Column(DateTime, nullable=True)
+
+    # ========================================================================
+    # OUTGOING EMAIL STATS (from me to contact) - NEW
+    # ========================================================================
+    total_emails_sent = Column(Integer, default=0)  # Emails I sent to this contact
+    total_initiated_threads = Column(Integer, default=0)  # Threads I started (not replies)
+    total_sent_with_reply = Column(Integer, default=0)  # My emails that got a reply
+
+    initiation_rate = Column(Float, default=0.0)  # % of threads I initiate (vs reply)
+    sent_reply_rate = Column(Float, default=0.0)  # % of my emails that get replies
+    avg_emails_sent_per_week = Column(Float, default=0.0)
+    last_email_sent = Column(DateTime, nullable=True)
+
+    # ========================================================================
+    # COMBINED METRICS (bidirectional)
+    # ========================================================================
+    total_emails_exchanged = Column(Integer, default=0)  # sent + received
+    contact_importance = Column(Float, default=0.5)  # 0-1, combines incoming + outgoing
+    relationship_type = Column(String(50), default='neutral')  # proactive, reactive, bidirectional, one_way
+
+    # Relationship type classification:
+    # - 'proactive': I initiate most conversations (high initiation_rate)
+    # - 'reactive': I mostly respond (low initiation_rate, high reply_rate)
+    # - 'bidirectional': Balanced back-and-forth (both high)
+    # - 'one_way_outgoing': I send, they don't reply (high sent, low received)
+    # - 'one_way_incoming': They send, I don't reply (high received, low sent)
+
+    # ========================================================================
+    # TRUST & PREFERENCES
+    # ========================================================================
+    trust_level = Column(String(50), default='neutral', index=True)
+    is_whitelisted = Column(Boolean, default=False, index=True)
+    is_blacklisted = Column(Boolean, default=False, index=True)
+
+    preferred_primary_category = Column(String(100), nullable=True)
+    allowed_categories = Column(JSON, default=list)
+    muted_categories = Column(JSON, default=list)
+
+    # ========================================================================
+    # METADATA
+    # ========================================================================
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    extra_metadata = Column(JSON, default={})
+
+    def __repr__(self):
+        return f"<ContactPreference(contact='{self.contact_email}', importance={self.contact_importance:.2f}, type='{self.relationship_type}')>"
+
+
 class FeedbackEvent(Base):
     """Individual user actions on emails (feedback for learning)"""
     __tablename__ = "feedback_events"
